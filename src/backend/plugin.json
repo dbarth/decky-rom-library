@@ -8,7 +8,7 @@
       "emulation",
       "library"
     ],
-    "description": "Show your ES-DE games in game mode, in a library like Steam's.",
+    "description": "Brings your console and arcade games into Steam's game mode.",
     "image": "https://raw.githubusercontent.com/dbarth/decky-rom-library/main/assets/library.png"
   }
 }

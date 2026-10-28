@@ -1,7 +1,7 @@
 {
   "name": "rom-library",
   "version": "0.1.0",
-  "description": "Show your ES-DE games in game mode, in a library like Steam's",
+  "description": "Brings your console and arcade games into Steam's game mode",
   "type": "module",
   "scripts": {
     "build": "rollup -c tools/rollup.config.js",
