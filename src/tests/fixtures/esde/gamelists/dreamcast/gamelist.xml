@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<alternativeEmulator>
+	<label>Flycast (Standalone)</label>
+</alternativeEmulator>
+<gameList>
+	<game>
+		<path>./Virtua Tennis - Sega Professional Tennis (Europe) (En,Fr,De,Es) (Beta) (2000-07-14).chd</path>
+		<name>Virtua Tennis - Sega Professional Tennis (Europe) (En,Fr,De,Es) (Beta) (2000-07-14)</name>
+		<playcount>1</playcount>
+		<playtime>316</playtime>
+		<lastplayed>20261021T222637</lastplayed>
+	</game>
+</gameList>

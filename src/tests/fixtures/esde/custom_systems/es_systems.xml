@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!-- Written for ROM Library's tests. A system here replaces the bundled one of the same name. -->
+<systemList>
+    <system>
+        <name>ps2</name>
+        <fullname>Sony PlayStation 2</fullname>
+        <path>%ROMPATH%/ps2</path>
+        <extension>.chd .CHD .iso .ISO</extension>
+        <command label="ARMSX2">%EMULATOR_ARMSX2% %ROM%</command>
+        <command label="LRPS2">%EMULATOR_RETROARCH% -L %CORE_RETROARCH%/pcsx2_libretro.so %ROM%</command>
+        <platform>ps2</platform>
+        <theme>ps2</theme>
+    </system>
+</systemList>

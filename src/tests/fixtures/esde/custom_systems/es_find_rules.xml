@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!-- Written for ROM Library's tests. A rule here replaces the bundled one of the same name. -->
+<ruleList>
+    <emulator name="ARMSX2">
+        <rule type="systempath">
+            <entry>armsx2</entry>
+        </rule>
+        <rule type="staticpath">
+            <entry>~/Applications/ARMSX2*.AppImage</entry>
+        </rule>
+    </emulator>
+    <emulator name="CEMU">
+        <rule type="systempath">
+            <entry>cemu</entry>
+        </rule>
+        <rule type="staticpath">
+            <entry>~/Applications/Cemu*.AppImage</entry>
+        </rule>
+    </emulator>
+</ruleList>
