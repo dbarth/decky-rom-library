@@ -1,0 +1,30 @@
+{
+  "name": "rom-library",
+  "version": "0.1.0",
+  "description": "Show your ES-DE games in game mode, in a library like Steam's",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c tools/rollup.config.js",
+    "watch": "rollup -c tools/rollup.config.js -w"
+  },
+  "license": "MIT",
+  "decky-vite": {
+    "manifest": "src/backend/plugin.json",
+    "entry": "src/frontend/index.tsx",
+    "backend": ["src/backend/main.py", "src/backend/rom_library", "src/backend/defaults/"],
+    "hooks": "tools/decky-vite.hooks.ts",
+    "route": "/rom-library"
+  },
+  "dependencies": {
+    "@decky/api": "1.1.3",
+    "@decky/ui": "4.11.6"
+  },
+  "devDependencies": {
+    "@decky/rollup": "1.0.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@types/webpack": "5.28.5",
+    "rollup": "4.62.0",
+    "typescript": "6.0.3"
+  }
+}

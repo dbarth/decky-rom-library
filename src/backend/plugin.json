@@ -1,0 +1,14 @@
+{
+  "name": "ROM Library",
+  "author": "David Barth",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": [
+      "emulation",
+      "library"
+    ],
+    "description": "Show your ES-DE games in game mode, in a library like Steam's.",
+    "image": "https://raw.githubusercontent.com/dbarth/decky-rom-library/main/assets/library.png"
+  }
+}
