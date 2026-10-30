@@ -1,5 +1,6 @@
 import { staticClasses } from "@decky/ui";
 import { definePlugin, routerHook } from "@decky/api";
+import { LIBRARIES_ROUTE, LibrariesPage } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, GamePage, GamesPage, PROPERTIES_ROUTE } from "./page";
 import { Panel } from "./panel";
 import { PropertiesPage } from "./properties";
@@ -19,6 +20,7 @@ export default definePlugin(() => {
   routerHook.addRoute(GAMES_ROUTE, GamesPage, { exact: true });
   routerHook.addRoute(GAME_ROUTE, GamePage, { exact: true });
   routerHook.addRoute(PROPERTIES_ROUTE, PropertiesPage, { exact: true });
+  routerHook.addRoute(LIBRARIES_ROUTE, LibrariesPage, { exact: true });
   return {
     name: "ROM Library",
     titleView: <div className={staticClasses.Title}>ROM Library</div>,
@@ -28,6 +30,7 @@ export default definePlugin(() => {
       routerHook.removeRoute(GAMES_ROUTE);
       routerHook.removeRoute(GAME_ROUTE);
       routerHook.removeRoute(PROPERTIES_ROUTE);
+      routerHook.removeRoute(LIBRARIES_ROUTE);
     },
   };
 });

@@ -117,6 +117,32 @@ export interface Candidate {
 
 export type Kind = "portrait" | "landscape" | "hero" | "logo" | "icon";
 
+export type DriveKind = "internal" | "sd" | "usb";
+
+// A ROM folder the scan found. 'where' is the path from the drive's name or from the home, such
+// as MicroSD/Emulation/roms. 'source' names the tool whose settings point there.
+export interface Library {
+  path: string;
+  where: string;
+  drive: { kind: DriveKind; name: string };
+  // The file system, such as ext4 or exfat. 'links' is false where it holds no symbolic links: the
+  // library can join a combined library but cannot hold one.
+  fs: string;
+  links: boolean;
+  source: string | null;
+  games: number;
+  systems: { id: string; name: string; games: number }[];
+}
+
+// Where a new library would go: its drive, the drive's free bytes, and the systems it gets a folder
+// for.
+export interface NewLibrary {
+  path: string;
+  drive: { kind: DriveKind; name: string };
+  free: number;
+  systems: { id: string; name: string }[];
+}
+
 // The shortcut fields the plugin sets and keeps in line with ES-DE.
 interface Applied {
   name: string;
@@ -171,6 +197,17 @@ export const quitGame = callable<[appid: number], "quit" | "killed" | null>("qui
 // Moves a game into its system's folder and returns its path there.
 export const importGame = callable<[system: string, path: string], string>("import_game");
 export const getPlaces = callable<[], { downloads: string; loadout: boolean }>("places");
+// Looks in the known places. 'deep' searches every folder of every drive.
+export const findLibraries = callable<[deep: boolean], Library[]>("find_libraries");
+// Makes the folder the ROM folder ROM Library reads.
+export const pickLibrary = callable<[path: string], void>("use_library");
+// A new library's creation, with a folder per system and a link per system of the included
+// libraries.
+// The places a new library can go, the default first: the internal storage, then each card or drive.
+export const getNewLibraries = callable<[], NewLibrary[]>("new_libraries");
+export const createLibrary = callable<[path: string, include: string[]], void>("create_library");
+// Links the systems of the included libraries into the main one.
+export const combineLibraries = callable<[main: string, include: string[]], void>("combine_libraries");
 export const getEmulatorSettings = callable<[system: string, path: string], EmulatorSettings | null>(
   "emulator_settings");
 export const setEmulatorSetting = callable<[system: string, path: string, key: string, value: string | null], void>(

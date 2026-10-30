@@ -159,7 +159,7 @@ export const CSS = `
 .rt-stat { min-width: 0; max-width: 180px; }
 .rt-stat dt { font-size: var(--rt-label); font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
   color: var(--rt-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rt-stat dd { margin: 4px 0 0; font-size: var(--rt-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-stat dd { margin: 0 0 0; font-size: var(--rt-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* An arcade game's page shows two lines of its history under the stats, then Game Info. Steam's
    buttons keep a 160px minimum width and their own padding. */
 .rt-teaser { margin: 0; }
@@ -209,4 +209,60 @@ export const CSS = `
   text-box: trim-both cap alphabetic; }
 /* A note under a row, in the rows' type. */
 .rt-prop-note { margin: 16px 12px; font-size: var(--rt-body); line-height: 1.5; color: var(--rt-ink); }
+/* The libraries the scan found: the title, the list and the deep search on the left, the focused
+   library in full on the right. The left title shares its baseline with the panel's. */
+.rt-libs { height: 100%; display: flex; gap: 24px; padding: 0 2.8vw; box-sizing: border-box; }
+.rt-libs-side { flex: none; width: 340px; display: flex; flex-direction: column; padding-top: 48px; }
+.rt-libs-side h2 { margin: 0 0 24px; font-size: var(--rt-title); font-weight: 800; line-height: 1.15; color: #fff; }
+.rt-libs-side p { margin: 0 0 20px; font-size: var(--rt-body); line-height: 1.45; color: var(--rt-dim); }
+.rt-libs-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
+  padding-bottom: 56px; scroll-padding: 0 0 56px; }
+/* A row: the drive's name in bold, its games or its role at the right. */
+.rt-lib { flex: none; display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; border-radius: 4px;
+  background: var(--rt-card); }
+.rt-lib.rt-focus { background: #3d4450; }
+.rt-lib-name { min-width: 0; font-size: var(--rt-body); font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.rt-lib-count { flex: none; margin-left: auto; font-size: var(--rt-body); }
+.rt-libs-list .rt-deep { flex: none; width: auto; display: flex; align-items: center; gap: 10px; }
+.rt-deep svg { width: 14px; height: 14px; }
+/* The deep search and the new library each follow a line that tells what they do. Without a
+   library, a rule separates them. */
+.rt-libs-rule { flex: none; height: 1px; margin: 24px 0; background: #ffffff3a; }
+.rt-libs-list .rt-new { flex: none; width: auto; text-align: left; }
+.rt-libs-side .rt-libs-note { margin: 12px 0 12px; }
+.rt-libs-side .rt-libs-note.rt-libs-or, .rt-libs-side .rt-libs-note.rt-libs-more { margin: 24px 0 12px; }
+.rt-libs-side .rt-libs-note.rt-libs-more:first-child { margin-top: 0; }
+/* The panel keeps its height from one library to the next and stops above Steam's footer. The
+   drive's icon sits left of the name. Everything else lines up with the name. */
+.rt-detail { flex: 1; min-width: 0; box-sizing: border-box; margin: 24px 0 56px; padding: 24px 28px; overflow: hidden;
+  display: grid; grid-template-columns: 40px 1fr; grid-template-rows: repeat(5, min-content) 1fr; column-gap: 16px;
+  border-radius: 4px; background: var(--rt-card); }
+/* The panel's text sits one step up the type scale: label and meta at 16px, body at 18px, heading at
+   32px. */
+.rt-detail { --rt-label: 16px; --rt-meta: 16px; --rt-body: 18px; --rt-heading: 32px; }
+.rt-detail > :not(.rt-detail-drive) { grid-column: 2; }
+/* The icon is centred on the name's line. Its negative margins keep the row as tall as the name. */
+.rt-detail-drive { grid-row: 1; align-self: center; width: 40px; height: 40px; margin: -8px 0; color: var(--rt-dim); }
+.rt-detail-drive svg { display: block; width: 100%; height: 100%; }
+.rt-detail-name { display: flex; align-items: baseline; gap: 12px; font-size: var(--rt-heading); font-weight: 700;
+  line-height: 1.15; color: #fff; }
+.rt-detail-path { margin-top: 0px; font-size: var(--rt-meta); color: var(--rt-dim); overflow-wrap: anywhere; }
+.rt-detail-stats { margin: 12px 0 28px; }
+/* The rule separates the drive from its systems, from the text's left edge to the panel's right. */
+.rt-detail-rule { height: 1px; margin-bottom: 20px; background: #ffffff3a; }
+.rt-detail-systems { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 42px; }
+.rt-system { display: flex; align-items: baseline; gap: 10px; font-size: var(--rt-body); }
+.rt-system-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-system-count { margin-left: auto; color: var(--rt-dim); }
+.rt-system-more { color: var(--rt-dim); }
+/* A remark at the foot of the panel, 24px at least under the systems: Recommended, Tip or Note in the
+   text's colour, then the advice. The panel's padding keeps it as far from the bottom as the name
+   is from the top. */
+.rt-detail > .rt-detail-note { grid-row: -2; align-self: end; margin: 24px 0 0; font-size: var(--rt-body); line-height: 1.45;
+  color: var(--rt-dim); }
+.rt-detail-note strong { color: var(--rt-ink); }
+/* While the scan runs, the panel holds the lens. */
+.rt-detail.rt-searching { display: flex; align-items: center; justify-content: center; }
+.rt-lens { width: 60%; max-height: 80%; color: #ffffff12; }
 ${PANEL_CSS}`;

@@ -77,7 +77,8 @@ function SearchIcon() {
 
 // The page with the plugin's own bar in the row of Steam's status bar, so it never passes for the
 // Steam library. A bare page, such as a game's, runs its art up there instead.
-export function Page({ children, bare }: { children: ReactNode; bare?: boolean }) {
+export function Page({ children, bare, searchBar = true }:
+  { children: ReactNode; bare?: boolean; searchBar?: boolean }) {
   const s = useStore();
   return (
     <div className="rt-page">
@@ -85,11 +86,11 @@ export function Page({ children, bare }: { children: ReactNode; bare?: boolean }
       {!bare && (
         <Focusable className="rt-bar" flow-children="row">
           <div className="rt-brand"><Logo />ROM Library</div>
-          <div className="rt-search">
+          {searchBar && <div className="rt-search">
             <SearchIcon />
             <TextField value={s.query} onChange={(e) => search(e.target.value)}
               {...({ placeholder: "Search ROMs..." } as object)} />
-          </div>
+          </div>}
         </Focusable>
       )}
       <div className="rt-body">{children}</div>
