@@ -533,7 +533,6 @@ function GameView({ system, game }: { system: string; game: Game }) {
   const shown = isApp && game.appid != null && !isHidden(game.appid);
   const inSteam = isApp ? shown : game.appid != null;
   const hero = usePicture(system, game.path, "hero");
-  const logo = usePicture(system, game.path, "logo");
   // The image button spins while a new image is applied.
   const refreshing = !!s.artPending[game.path];
   const f = useInfo(system, game.path);
@@ -610,11 +609,8 @@ function GameView({ system, game }: { system: string; game: Game }) {
         <div ref={top} className="rt-game">
           <div className="rt-hero">
             <Hero system={system} path={game.path} first={hero} />
-            {/* The name shows until the logo is found, and stays when there is none. */}
             <div className="rt-headline">
-              {/* logo ? <img className="rt-logoart" src={logo} /> */
-	      <div className="rt-title">{game.name}</div>
-	    }
+              <div className="rt-title">{game.name}</div>
               {inSteam && <span className="rt-steam">In Steam<Logo /></span>}
             </div>
           </div>

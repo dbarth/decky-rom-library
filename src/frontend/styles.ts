@@ -121,9 +121,7 @@ export const CSS = `
 .rt-steam { flex: none; margin-left: auto; display: flex; align-items: baseline; gap: 6px; padding: 5px 8px;
   border-radius: 3px; background: #dcdedf; color: #0e141b; font-size: var(--rt-label); font-weight: 700; line-height: 1; }
 .rt-steam svg { width: 10px; height: 10px; }
-.rt-logoart { display: block; max-width: min(100%, 180px); max-height: calc(var(--rt-hero) * 0.32);
-  filter: drop-shadow(0 2px 8px #000c); }
-.rt-hero > img, .rt-logoart { animation: rt-fade 0.2s ease-out; }
+.rt-hero > img { animation: rt-fade 0.2s ease-out; }
 .rt-hero > .rt-slide { animation: rt-fade 1.5s ease-in-out; }
 @keyframes rt-fade { from { opacity: 0; } }
 .rt-title { font-size: var(--rt-display); font-weight: 800; color: #fff; line-height: 1.15; text-shadow: 0 2px 8px #000c; }
