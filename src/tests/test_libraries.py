@@ -151,6 +151,28 @@ class LibrariesTest(unittest.TestCase):
         self.assertEqual([g["path"] for g in self.lib.games("snes")],
                          [os.path.join(self.sd, "snes", f) for f in ("Super Metroid.sfc", "Zelda.sfc")])
 
+    def test_a_tile_follows_its_game_to_the_new_main_folder(self):
+        applied = {"name": "", "exe": "", "start_dir": "", "launch_options": ""}
+        zelda, metroid = os.path.join(self.sd, "snes/Zelda.sfc"), os.path.join(self.sd, "snes/Super Metroid.sfc")
+        fusion = os.path.join(self.sd, "gba/Metroid Fusion.gba")
+        self.lib.record(zelda, 1, "snes", applied)
+        self.lib.record(metroid, 2, "snes", applied)
+        self.lib.record(fusion, 3, "gba", applied)
+        self.lib.choices[zelda] = {"portrait": "file:/art/zelda.png"}
+        # The internal storage holds a copy of Zelda, and a Super Metroid of another size.
+        touch(self.h.rom("snes/Zelda.sfc"), "x" * 200)
+        touch(self.h.rom("snes/Super Metroid.sfc"), "x" * 299)
+        self.lib.use_library(self.h.roms)
+        self.assertEqual(self.lib.tiles[self.h.rom("snes/Zelda.sfc")]["appid"], 1)
+        self.assertEqual(self.lib.choices, {self.h.rom("snes/Zelda.sfc"): {"portrait": "file:/art/zelda.png"}})
+        self.assertEqual(sorted(p for p, tile in self.lib.tiles.items() if tile["appid"] != 1), sorted([metroid, fusion]))
+        games = {g["path"]: g for g in self.lib.games("snes")}
+        self.assertFalse(games[self.h.rom("snes/Zelda.sfc")]["missing"])
+        self.assertTrue(games[metroid]["missing"])
+        # The move lasts: a new library object reads it from tiles.json.
+        self.assertIn(self.h.rom("snes/Zelda.sfc"), library.Library(
+            DEFAULTS, self.settings, self.h.home, os.path.join(self.h.root, "runtime"), logging.getLogger()).tiles)
+
     def test_without_roots_cards_are_still_read(self):
         self.assertEqual(self.lib.esde.rom_dirs(), [self.h.roms + "/", self.sd + "/"])
 

@@ -548,6 +548,7 @@ class Library:
         """Read the games of one folder, and point ES-DE at it."""
         self.set_roots([path])
         self.esde.set_setting("ROMDirectory", path)
+        self.relocate()
 
     def combine_libraries(self, main, include):
         """Read the games of the main folder and of the included ones, and point ES-DE at the main one.
@@ -557,6 +558,7 @@ class Library:
         for link in self.libraries.link(main, [p for p in include if p != main]):
             self.log.info(f"linked {link} to {os.readlink(link)}")
         self.esde.set_setting("ROMDirectory", main)
+        self.relocate()
 
     def create_library(self, path, include):
         """Make a library with a folder per system, then combine the included folders into it."""
@@ -564,6 +566,43 @@ class Library:
         for link in self.libraries.create(path, [p for p in include if p != path]):
             self.log.info(f"linked {link} to {os.readlink(link)}")
         self.esde.set_setting("ROMDirectory", path)
+        self.relocate()
+
+    def relocate(self):
+        """Move each tile whose game left the ROM folders to the same game in them: the same file name,
+        and the same size while the old file is there. The tile's own system comes first. A tile with no
+        such game, or with two, keeps its path. The next sync gives the Steam shortcut the new path."""
+        systems = self.systems()
+        found = None
+        moved = 0
+        for path, tile in list(self.tiles.items()):
+            if self.system_of(path, systems):
+                continue
+            if found is None:
+                found = collections.defaultdict(list)
+                for sid, system in systems.items():
+                    for game in self.scan(system):
+                        found[os.path.basename(game)].append((sid, game))
+            try:
+                size = os.stat(path).st_size
+            except OSError:
+                size = None
+            same = [(sid, p) for sid, p in found.get(os.path.basename(path), [])
+                    if p not in self.tiles and (size is None or os.path.isfile(p) and os.stat(p).st_size == size)]
+            own = [m for m in same if m[0] == tile.get("system")]
+            match = own if len(own) == 1 else same
+            if len(match) != 1:
+                continue
+            sid, new = match[0]
+            self.tiles[new] = {**self.tiles.pop(path), "system": sid}
+            if path in self.choices:
+                self.choices[new] = self.choices.pop(path)
+            self.log.info(f"tile {tile['appid']}: {path} -> {new}")
+            moved += 1
+        if moved:
+            self.save_tiles()
+            write_json(self.choices_file, self.choices)
+        return moved
 
     # Steam shortcuts
 
