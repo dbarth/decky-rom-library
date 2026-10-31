@@ -27,8 +27,8 @@ ROM Library needs:
 - An emulator for each system, for example installed by Loadout.
 - The games in `~/Emulation/roms/<system>`, such as `~/Emulation/roms/switch`,
   with [ES-DE's system names](https://gitlab.com/es-de/emulationstation-de/-/blob/master/USERGUIDE.md#supported-game-systems).
-  Games on an SD card are found too, in `Emulation/roms/<system>` on the card, such as
-  `/run/media/steamos/MicroSD/Emulation/roms/switch`.
+  ROM Library also looks on SD cards and USB drives. It reads the folders of
+  EmuDeck, RetroDECK, Batocera and ROCKNIX.
 
 1. In Decky's settings, open General and turn on Developer mode.
 2. Open Developer. Under Install Plugin from URL, enter the URL of Get it and
@@ -48,6 +48,12 @@ To update, install from the same URL again.
 - The Emulators tab presents installed emulators, can hide or show them in the Steam library and can also uninstall an unused emulator.
 
 ![The arcade games in ROM Library](assets/library.png)
+
+### ROM folders
+
+- Find the ROM folders on the device at first use.
+- Pick one folder, or combine several into one library. ES-DE reads the same library.
+- Scan Libraries… in the Decky menu runs the scan again.
 
 ### Game page
 
@@ -70,6 +76,7 @@ To update, install from the same URL again.
 - The quick-access menu is context-aware:
   - In game mode, it provides access to Properties or helps quit the game cleanly.
   - In library mode, it has shortcuts for adding a game or emulator.
+  - Scan Libraries… looks for ROM folders again.
 
 ### Systems and emulators
 
@@ -98,7 +105,7 @@ Next:
 npm install
 tools/deploy.sh user@host    # builds out/rom-library.zip and installs it on the device
 tools/deploy.sh -            # builds the zip only
-for t in src/tests/test_*.py; do python3 -I "$t"; done
+npm test                     # runs the Python and JavaScript tests
 ```
 
 To iterate quickly on the UI, I also made [decky-vite](https://github.com/dbarth/decky-vite), to see
