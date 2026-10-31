@@ -1,6 +1,6 @@
 {
   "name": "rom-library",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Brings your console and arcade games into Steam's game mode",
   "type": "module",
   "scripts": {
