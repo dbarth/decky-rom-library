@@ -1,7 +1,7 @@
 {
   "esde_home": "~/ES-DE",
   "systems": {
-    "fbneo": {"name": "Arcade (FinalBurn Neo)", "collection": "Arcade", "titles": "fbneo", "dat_only": true, "libretro": "FBNeo - Arcade Games", "art": ["esde", "libretro", "sgdb"]},
+    "fbneo": {"name": "Arcade", "collection": "Arcade", "titles": "fbneo", "dat_only": true, "libretro": "FBNeo - Arcade Games", "art": ["esde", "libretro", "sgdb"]},
     "fba": {"titles": "fbneo", "libretro": "FBNeo - Arcade Games"},
     "arcade": {"titles": "fbneo", "libretro": "FBNeo - Arcade Games", "collection": "Arcade"},
     "mame": {"titles": "fbneo", "libretro": "FBNeo - Arcade Games", "collection": "Arcade"},

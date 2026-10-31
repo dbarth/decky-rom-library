@@ -37,7 +37,7 @@ class LibraryTest(unittest.TestCase):
     def test_system_list(self):
         systems = {s["id"]: s for s in self.lib.system_list()}
         self.assertEqual(sorted(systems), ["c64", "fbneo", "n64", "psp", "psx", "switch", "wii"])
-        self.assertEqual(systems["fbneo"]["name"], "Arcade (FinalBurn Neo)")
+        self.assertEqual(systems["fbneo"]["name"], "Arcade")
         self.assertEqual(systems["fbneo"]["collection"], "Arcade")
         self.assertEqual(systems["n64"]["collection"], "Nintendo 64")
         self.assertTrue(systems["switch"]["available"])
