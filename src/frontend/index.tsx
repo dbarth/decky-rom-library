@@ -23,7 +23,9 @@ export default definePlugin(() => {
   routerHook.addRoute(LIBRARIES_ROUTE, LibrariesPage, { exact: true });
   return {
     name: "ROM Library",
-    titleView: <div className={staticClasses.Title}>ROM Library</div>,
+    // Decky puts the title in a row of the same class, beside its back button. 3px of padding, down from
+    // 6px, centres the capitals on the button's arrow on the Odin 2 Portal.
+    titleView: <div className={staticClasses.Title} style={{ paddingTop: 3 }}>ROM Library</div>,
     content: <Panel />,
     icon: <Icon />,
     onDismount() {
