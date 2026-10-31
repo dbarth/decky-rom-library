@@ -15,6 +15,7 @@ import { GameInfo, MONTHS, factsOf, hasFacts } from "./gameinfo";
 import {
   dataUrl, forgetInfos, forgetPicture, useImageUrl, useInfo, usePicture, usePlaytime, usePreview, useRomFiles,
 } from "./hooks";
+import { takeFocus } from "./focus";
 import { CSS } from "./styles";
 
 export const GAMES_ROUTE = "/rom-library";
@@ -523,11 +524,18 @@ function appMenu(at: EventTarget | null, app: Game) {
   );
 }
 
+// Opens a game's Properties. Back on a page, Steam focuses the button that left it: Play takes the
+// focus first, and the game's page shows Play focused again.
+export function openProperties(play: HTMLElement | null) {
+  takeFocus(play);
+  Navigation.Navigate(PROPERTIES_ROUTE);
+}
+
 // L1 and R1 step through the games of the grid.
 const BUMPERS: Record<number, number> = { [GamepadButton.BUMPER_LEFT]: -1, [GamepadButton.BUMPER_RIGHT]: 1 };
 
 // The page of one game, laid out as Steam's: its wide art, Play and the facts.
-function GameView({ system, game }: { system: string; game: Game }) {
+export function GameView({ system, game }: { system: string; game: Game }) {
   const s = useStore();
   const isApp = system === APPS;
   // An app's button shows it in Steam's library or hides it there.
@@ -563,12 +571,12 @@ function GameView({ system, game }: { system: string; game: Game }) {
     el?.addEventListener("focusin", close);
     return () => el?.removeEventListener("focusin", close);
   }, []);
-  // Play takes the focus when the page opens. On an app's page the gear does: it leads to the
-  // launcher, and showing the app in Steam's library stays a choice.
+  // Play takes Steam's focus when the page opens, and no other button claims it. On an app's page the
+  // gear does: it leads to the launcher, and showing the app in Steam's library stays a choice.
   const main = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    (isApp ? gear : main).current?.focus();
+    takeFocus((isApp ? gear : main).current);
   }, [game.path]);
   // The teaser takes the strip's middle column, the stats' box. It stays out of the buttons' row so
   // that down from Play reaches Game Info: its place is measured.
@@ -625,7 +633,7 @@ function GameView({ system, game }: { system: string; game: Game }) {
                 </DialogButton>
               ) : (
                 <DialogButton ref={main} className={`rt-act rt-big rt-play${mainBusy ? " rt-pending" : ""}`}
-                  disabled={game.missing} onClick={() => play(system, game)}>
+                  preferredFocus disabled={game.missing} onClick={() => play(system, game)}>
                   <span className="rt-text"><PlayIcon />{game.missing ? "ROM missing" : "Play"}</span>
                   {mainBusy && <Spinner />}
                 </DialogButton>
@@ -647,9 +655,9 @@ function GameView({ system, game }: { system: string; game: Game }) {
                   <span className="rt-text"><ImageIcon /></span>
                   {refreshing && <Spinner />}
                 </DialogButton>
-                <DialogButton ref={gear} className={`rt-act rt-icon${busy && !mainBusy ? " rt-pending" : ""}`}
-                  disabled={!!busy} onClick={(e) => (isApp ? appMenu(e.currentTarget, game)
-                    : Navigation.Navigate(PROPERTIES_ROUTE))}>
+                <DialogButton ref={gear} className={`rt-act rt-icon rt-gear${busy && !mainBusy ? " rt-pending" : ""}`}
+                  preferredFocus={isApp} disabled={!!busy} onClick={(e) => (isApp ? appMenu(e.currentTarget, game)
+                    : openProperties(main.current))}>
                   <span className="rt-text"><GearIcon /></span>
                   {busy && !mainBusy && <Spinner />}
                 </DialogButton>

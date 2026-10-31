@@ -3,7 +3,8 @@ import {
   DialogHeader, Field, Focusable, ModalRoot, Navigation, PanelSection, PanelSectionRow, Router, gamepadDialogClasses,
   showModal,
 } from "@decky/ui";
-import { ReactNode, useEffect, useReducer, useState } from "react";
+import { ReactNode, useEffect, useReducer, useRef, useState } from "react";
+import { takeFocus } from "./focus";
 import { LIBRARIES_ROUTE, openLibraries } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, openGames } from "./page";
 import { addGame, findGame, loadGames, quit, refresh, state, update, useStore } from "./store";
@@ -121,12 +122,23 @@ function gameOf(info: AppInfo | null | undefined, launched: GameRef | null): Gam
 // Steam's Exit Game dialog, titled Quit game? to tell the two apart. Confirm has the focus and spins
 // until Steam no longer runs the game, then the dialog closes. B or a click beside the dialog closes
 // it sooner: the game still quits, and the panel's Quit Game spins.
-function QuitModal({ game, appid, closeModal }: { game: Game; appid: number; closeModal?: () => void }) {
+export function QuitModal({ game, appid, closeModal }: { game: Game; appid: number; closeModal?: () => void }) {
   const quitting = useStore().busy[game.path] === "Quitting…";
   const [asked, setAsked] = useState(false);
   useEffect(() => {
     if (asked && !quitting) closeModal?.();
   }, [asked, quitting]);
+  // Confirm takes Steam's focus when the dialog opens. The dialog opens as the Quick Access panel
+  // closes: Confirm takes the focus again when the dialog's window gets it back.
+  const confirm = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = confirm.current;
+    const win = el?.ownerDocument.defaultView;
+    const again = () => takeFocus(el);
+    takeFocus(el);
+    win?.addEventListener("focus", again, { once: true });
+    return () => win?.removeEventListener("focus", again);
+  }, []);
   return (
     <ModalRoot closeModal={closeModal} onCancel={closeModal}>
       <style>{PANEL_CSS}</style>
@@ -136,7 +148,7 @@ function QuitModal({ game, appid, closeModal }: { game: Game; appid: number; clo
       </DialogBody>
       <DialogFooter>
         <Focusable flow-children="row" style={{ display: "flex", gap: "12px" }}>
-          <DialogButtonPrimary className={quitting ? "rt-quit rt-pending" : "rt-quit"} style={{ flex: 1 }}
+          <DialogButtonPrimary ref={confirm} className={quitting ? "rt-quit rt-pending" : "rt-quit"} style={{ flex: 1 }}
             preferredFocus onClick={() => {
               if (quitting) return;
               setAsked(true);

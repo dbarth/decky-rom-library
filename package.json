@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "rollup -c tools/rollup.config.js",
-    "watch": "rollup -c tools/rollup.config.js -w"
+    "watch": "rollup -c tools/rollup.config.js -w",
+    "test": "python3 -m unittest discover -s src/tests -p 'test_*.py' && node --import ./src/tests/register.mjs --test src/tests/*.test.tsx"
   },
   "license": "MIT",
   "decky-vite": {
@@ -24,6 +25,8 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/webpack": "5.28.5",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
     "rollup": "4.62.0",
     "typescript": "6.0.3"
   }
