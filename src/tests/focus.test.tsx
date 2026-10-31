@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { navigated } from "@decky/ui";
-import { navNode, takeFocus } from "../frontend/focus";
+import { navNode, showGamepadFocus, takeFocus } from "../frontend/focus";
 import { GameView, PROPERTIES_ROUTE, openProperties } from "../frontend/page";
 import { QuitModal } from "../frontend/panel";
 import { APPS, Game } from "../frontend/tiles";
@@ -80,4 +80,17 @@ test("the gear hands Steam's focus to Play before it opens Properties", () => {
   openProperties(el);
   assert.equal(opened, 0);
   assert.deepEqual(navigated, [PROPERTIES_ROUTE]);
+});
+
+test("showGamepadFocus switches Steam's navigation source to the gamepad, and does nothing outside Steam", () => {
+  const calls: unknown[] = [];
+  const g = globalThis as { FocusNavController?: unknown };
+  showGamepadFocus();
+  g.FocusNavController = { UpdateSourceToGamepad: (force: boolean) => calls.push(force) };
+  try {
+    showGamepadFocus();
+  } finally {
+    delete g.FocusNavController;
+  }
+  assert.deepEqual(calls, [true]);
 });

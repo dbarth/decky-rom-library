@@ -28,3 +28,14 @@ export function navNode(el: Element): NavNode | null {
 export function takeFocus(el: HTMLElement | null) {
   if (el && !navNode(el)?.BTakeFocus()) el.focus();
 }
+
+interface FocusNavController {
+  UpdateSourceToGamepad?(force?: boolean): void;
+}
+
+// Shows Steam's focus as after a gamepad press. Steam shows it only while the last input came from the
+// gamepad. On the Odin 2 Portal, the Quick Access menu opens over a game with a mouse move: the
+// dialog it opens next keeps its focus unseen.
+export function showGamepadFocus() {
+  (globalThis as { FocusNavController?: FocusNavController }).FocusNavController?.UpdateSourceToGamepad?.(true);
+}

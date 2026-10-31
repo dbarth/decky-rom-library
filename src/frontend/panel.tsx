@@ -4,7 +4,7 @@ import {
   showModal,
 } from "@decky/ui";
 import { ReactNode, useEffect, useReducer, useRef, useState } from "react";
-import { takeFocus } from "./focus";
+import { showGamepadFocus, takeFocus } from "./focus";
 import { LIBRARIES_ROUTE, openLibraries } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, mainRoute, openGames } from "./page";
 import { addGame, findGame, loadGames, quit, refresh, state, update, useStore } from "./store";
@@ -121,16 +121,19 @@ export function QuitModal({ game, appid, closeModal }: { game: Game; appid: numb
   useEffect(() => {
     if (asked && !quitting) closeModal?.();
   }, [asked, quitting]);
-  // Confirm takes Steam's focus when the dialog opens. The dialog opens as the Quick Access panel
-  // closes: Confirm takes the focus again when the dialog's window gets it back.
+  // Confirm takes Steam's focus when the dialog opens, and shows it in blue. The dialog opens as the
+  // Quick Access panel closes: Confirm takes the focus again when the dialog's window gets it back.
   const confirm = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = confirm.current;
     const win = el?.ownerDocument.defaultView;
-    const again = () => takeFocus(el);
-    takeFocus(el);
-    win?.addEventListener("focus", again, { once: true });
-    return () => win?.removeEventListener("focus", again);
+    const focus = () => {
+      takeFocus(el);
+      showGamepadFocus();
+    };
+    focus();
+    win?.addEventListener("focus", focus, { once: true });
+    return () => win?.removeEventListener("focus", focus);
   }, []);
   return (
     <ModalRoot closeModal={closeModal} onCancel={closeModal}>
