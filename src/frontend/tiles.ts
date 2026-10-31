@@ -120,7 +120,7 @@ export type Kind = "portrait" | "landscape" | "hero" | "logo" | "icon";
 export type DriveKind = "internal" | "sd" | "usb";
 
 // A ROM folder the scan found. 'where' is the path from the drive's name or from the home, such
-// as MicroSD/Emulation/roms. 'source' names the tool whose settings point there.
+// as MicroSD/Emulation/roms. 'usedBy' names the front-ends and tools whose settings point there.
 export interface Library {
   path: string;
   where: string;
@@ -129,7 +129,7 @@ export interface Library {
   // library can join a combined library but cannot hold one.
   fs: string;
   links: boolean;
-  source: string | null;
+  usedBy: string[];
   games: number;
   systems: { id: string; name: string; games: number }[];
 }
@@ -197,8 +197,8 @@ export const quitGame = callable<[appid: number], "quit" | "killed" | null>("qui
 // Moves a game into its system's folder and returns its path there.
 export const importGame = callable<[system: string, path: string], string>("import_game");
 export const getPlaces = callable<[], { downloads: string; loadout: boolean }>("places");
-// Looks in the known places. 'deep' searches every folder of every drive.
-export const findLibraries = callable<[deep: boolean], Library[]>("find_libraries");
+// Looks for ROM folders in the known places.
+export const findLibraries = callable<[], Library[]>("find_libraries");
 // Makes the folder the ROM folder ROM Library reads.
 export const pickLibrary = callable<[path: string], void>("use_library");
 // A new library's creation, with a folder per system and a link per system of the included

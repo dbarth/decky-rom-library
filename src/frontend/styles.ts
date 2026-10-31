@@ -209,7 +209,7 @@ export const CSS = `
   text-box: trim-both cap alphabetic; }
 /* A note under a row, in the rows' type. */
 .rt-prop-note { margin: 16px 12px; font-size: var(--rt-body); line-height: 1.5; color: var(--rt-ink); }
-/* The libraries the scan found: the title, the list and the deep search on the left, the focused
+/* The libraries the scan found: the title, the list and the buttons on the left, the focused
    library in full on the right. The left title shares its baseline with the panel's. */
 .rt-libs { height: 100%; display: flex; gap: 24px; padding: 0 2.8vw; box-sizing: border-box; }
 .rt-libs-side { flex: none; width: 340px; display: flex; flex-direction: column; padding-top: 48px; }
@@ -224,15 +224,12 @@ export const CSS = `
 .rt-lib-name { min-width: 0; font-size: var(--rt-body); font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }
 .rt-lib-count { flex: none; margin-left: auto; font-size: var(--rt-body); }
-.rt-libs-list .rt-deep { flex: none; width: auto; display: flex; align-items: center; gap: 10px; }
-.rt-deep svg { width: 14px; height: 14px; }
-/* The deep search and the new library each follow a line that tells what they do. Without a
-   library, a rule separates them. */
-.rt-libs-rule { flex: none; height: 1px; margin: 24px 0; background: #ffffff3a; }
 .rt-libs-list .rt-new { flex: none; width: auto; text-align: left; }
+/* Use All and Organize… share a row under the list. */
+.rt-libs-actions { flex: none; display: flex; gap: 8px; margin-top: 24px; }
+.rt-libs-actions .DialogButton { flex: 1; width: auto; min-width: 0; }
 .rt-libs-side .rt-libs-note { margin: 12px 0 12px; }
-.rt-libs-side .rt-libs-note.rt-libs-or, .rt-libs-side .rt-libs-note.rt-libs-more { margin: 24px 0 12px; }
-.rt-libs-side .rt-libs-note.rt-libs-more:first-child { margin-top: 0; }
+.rt-libs-side .rt-libs-note.rt-libs-or { margin: 24px 0 12px; }
 /* The panel keeps its height from one library to the next and stops above Steam's footer. The
    drive's icon sits left of the name. Everything else lines up with the name. */
 .rt-detail { flex: 1; min-width: 0; box-sizing: border-box; margin: 24px 0 56px; padding: 24px 28px; overflow: hidden;

@@ -1,6 +1,7 @@
 import { DialogButton, Focusable, SteamSpinner } from "@decky/ui";
 import { ReactNode, useEffect, useState } from "react";
 import { Page, formatSize, openGames } from "./page";
+import { SAMPLE_PLACES, Scenario, sampleLibraries } from "./samples";
 import {
   DriveKind, Library, NewLibrary, combineLibraries, createLibrary, findLibraries, getNewLibraries, pickLibrary,
 } from "./tiles";
@@ -58,14 +59,6 @@ function Lens() {
         <rect x="6.6" y="10.4" width="3" height="3" rx="0.5" />
         <rect x="10.4" y="10.4" width="3" height="3" rx="0.5" />
       </g>
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="6.5" cy="6.5" r="5" /><path d="M10.5 10.5 15 15" />
     </svg>
   );
 }
@@ -167,7 +160,7 @@ function Detail({ lib, note }: { lib: Library; note: ReactNode }) {
       <dl className="rt-stats rt-detail-stats">
         <div className="rt-stat"><dt>Games</dt><dd>{count(lib.games)}</dd></div>
         <div className="rt-stat"><dt>Systems</dt><dd>{systems.length}</dd></div>
-        {lib.source && <div className="rt-stat"><dt>Set by</dt><dd>{lib.source}</dd></div>}
+        {lib.usedBy.length > 0 && <div className="rt-stat"><dt>Used by</dt><dd>{lib.usedBy.join(", ")}</dd></div>}
       </dl>
       <div className="rt-detail-rule" />
       <Systems systems={systems} />
@@ -192,35 +185,77 @@ function NewDetail({ lib }: { lib: NewLibrary }) {
   );
 }
 
-// The ROM folders the scan found, the largest first, for the user to pick one. The list shows each
-// folder's drive and games. The panel shows the focused one in full. Without a folder, the page
-// offers the deep search and a new library.
+// What Use All makes: the main library, or a new one when no library holds links, with the
+// systems and games of every library.
+function AllDetail({ libs, main, place }: { libs: Library[]; main: Library | null; place: NewLibrary | null }) {
+  const games = new Map<string, { id: string; name: string; games: number }>();
+  for (const l of libs) {
+    for (const s of l.systems) {
+      const g = games.get(s.id);
+      games.set(s.id, { ...s, games: (g?.games ?? 0) + s.games });
+    }
+  }
+  const systems = [...games.values()].sort((a, b) => b.games - a.games);
+  const head = main ?? place;
+  return (
+    <div className="rt-detail">
+      {head && <Head drive={head.drive} path={head.path} />}
+      <dl className="rt-stats rt-detail-stats">
+        <div className="rt-stat"><dt>Games</dt><dd>{count(libs.reduce((n, l) => n + l.games, 0))}</dd></div>
+        <div className="rt-stat"><dt>Systems</dt><dd>{systems.length}</dd></div>
+        <div className="rt-stat"><dt>Locations</dt><dd>{libs.length}</dd></div>
+      </dl>
+      <div className="rt-detail-rule" />
+      <Systems systems={systems} />
+    </div>
+  );
+}
+
+// Shows a scenario's sample libraries in place of the scan, to review the page: "searching", "none",
+// "one", "several", "exfat" or "organizer". null runs the scan.
+const SCENARIO: Scenario | null = null;
+
+// The ROM folders the scan found, the largest first. Without a folder, the page offers a new
+// library. One folder becomes the main library. Several are all used, or open the organizer, where X
+// sets the main library and the included ones. The list shows each folder's drive and games. The
+// panel shows the focused one in full.
 export function LibrariesPage() {
   const [libs, setLibs] = useState<Library[] | null>(null);
-  const [deep, setDeep] = useState(false);
   const [shown, setShown] = useState<string | null>(null);
   const [places, setPlaces] = useState<NewLibrary[]>([]);
   const [place, setPlace] = useState(0);
   const [onNew, setOnNew] = useState(false);
+  const [onAll, setOnAll] = useState(false);
+  const [onOrganize, setOnOrganize] = useState(false);
+  const [organize, setOrganize] = useState(SCENARIO === "organizer");
   const [roles, setRoles] = useState<Record<string, Role>>({});
+  // A hot reload runs the scan again: the page starts over, in the organizer for that scenario.
   useEffect(() => {
     setLibs(null);
     setRoles({});
+    setShown(null);
+    setOrganize(SCENARIO === "organizer");
+    setOnAll(false);
+    setOnOrganize(false);
+    setOnNew(false);
+    if (SCENARIO === "searching") return;
     const delay = new Promise((resolve) => setTimeout(resolve, SEARCH_MS));
+    const scan = SCENARIO ? Promise.resolve(sampleLibraries(SCENARIO)) : findLibraries();
     // The new library comes with the scan: Create a New Library takes the focus when it shows.
-    Promise.all([findLibraries(deep), getNewLibraries().catch(() => []), delay]).then(([found, where]) => {
+    const where = SCENARIO ? Promise.resolve(SAMPLE_PLACES) : getNewLibraries().catch(() => []);
+    Promise.all([scan, where, delay]).then(([found, where]) => {
       setPlaces(where);
       setPlace(0);
       const sorted = [...found].sort((a, b) => b.games - a.games);
       setLibs(sorted);
       // setLibs([]);
     }, () => delay.then(() => setLibs([])));
-  }, [deep]);
+  }, []);
   const detail = libs?.find((l) => l.path === shown) ?? libs?.[0];
   const newLib = places[place] ?? null;
   // The main library: the one the user set, else the recommended one.
   const chosen = Object.keys(roles).find((p) => roles[p] === "main");
-  const main = libs?.find((l) => l.path === chosen) ?? (libs && recommended(libs));
+  const main = libs?.find((l) => l.path === chosen) ?? (libs && recommended(libs)) ?? null;
   const included = Object.keys(roles).filter((p) => roles[p] === "included");
   const combining = Object.keys(roles).length > 0;
 
@@ -242,18 +277,19 @@ export function LibrariesPage() {
     done.then(openGames, () => undefined);
   }
 
-  const search = !deep && libs && (
-    <>
-      <p className="rt-libs-note rt-libs-more">We could search further into your system.</p>
-      <DialogButton className="rt-deep" onClick={() => setDeep(true)}>
-        <SearchIcon />Search More Folders
-      </DialogButton>
-    </>
-  );
+  // Use All includes every library in the main one, or in a new one when none holds links.
+  function useAll() {
+    if (!libs) return;
+    const others = libs.filter((l) => l !== main).map((l) => l.path);
+    const done = main ? combineLibraries(main.path, others) : newLib ? createLibrary(newLib.path, others) : null;
+    done?.then(openGames, () => undefined);
+  }
+
   const changeDrive = {
     onSecondaryButton: places.length > 1 ? () => setPlace((place + 1) % places.length) : undefined,
     onSecondaryActionDescription: places.length > 1 ? "Change Drive" : undefined,
   };
+  const several = !!libs && libs.length > 1;
   let side: ReactNode;
   if (!libs) {
     side = <><h2>Looking for ROMs</h2><SteamSpinner /></>;
@@ -261,13 +297,8 @@ export function LibrariesPage() {
     side = (
       <>
         <h2>No ROMs found</h2>
-        <p>
-          {deep ? "We looked into every folder."
-            : "We looked into the most common locations."}
-        </p>
+        <p>We looked into the most common locations.</p>
         <Focusable className="rt-libs-list" flow-children="column">
-          {search}
-          {search && <div className="rt-libs-rule" />}
           <DialogButton className="rt-new" disabled={!newLib}
 	    preferredFocus={true}
             onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
@@ -278,13 +309,43 @@ export function LibrariesPage() {
         </Focusable>
       </>
     );
+  } else if (several && !organize) {
+    side = (
+      <>
+        <h2>Found {libs.length} locations</h2>
+        <p>{onOrganize ? "Set main and combine libraries." : "We'll use all of them."}</p>
+        <Focusable className="rt-libs-list" flow-children="column">
+          {libs.map((l) => (
+            <LibraryRow key={l.path} lib={l} name={label(l, libs)} combining={false} first={false} actions={{
+              onGamepadFocus: () => setShown(l.path),
+              onActivate: useAll,
+              onOKActionDescription: "Use All",
+            }} />
+          ))}
+          <Focusable className="rt-libs-actions" flow-children="row">
+            <DialogButton preferredFocus onGamepadFocus={() => setOnAll(true)} onGamepadBlur={() => setOnAll(false)}
+              onClick={useAll}>
+              Use All
+            </DialogButton>
+            <DialogButton onGamepadFocus={() => setOnOrganize(true)} onGamepadBlur={() => setOnOrganize(false)}
+              onClick={() => setOrganize(true)}>
+              Organize…
+            </DialogButton>
+          </Focusable>
+        </Focusable>
+      </>
+    );
   } else {
-    const games = libs[0].games;
     // Libraries on exFAT alone cannot be combined: a new main library on the internal storage can
     // include them.
-    const noMain = libs.length > 1 && !main;
-    let title = libs.length > 1 ? `Found ${libs.length} places` : `Found ${count(games)} ${games === 1 ? "ROM" : "ROMs"}`;
-    let lede = `${libs.length > 1 ? "Pick" : "Config"} the library to show in Steam.`;
+    const noMain = several && !main;
+    const games = libs[0].games;
+    let title = `Found ${count(games)} ${games === 1 ? "ROM" : "ROMs"}`;
+    let lede = "We found games in this location.";
+    if (several) {
+      title = "Organize Libraries";
+      lede = "Set the main library and include the others.";
+    }
     if (noMain) {
       title = `Found ${libs.length} locations`;
       lede = "Select one of these libraries.";
@@ -293,9 +354,10 @@ export function LibrariesPage() {
       <>
         <h2>{title}</h2>
         <p>{lede}</p>
-        <Focusable className="rt-libs-list" flow-children="column">
+        <Focusable className="rt-libs-list" flow-children="column"
+          onCancel={several ? () => setOrganize(false) : undefined}>
           {libs.map((l, i) => {
-            const x = act(l);
+            const x = several ? act(l) : null;
             return (
               <LibraryRow key={l.path} lib={l} name={label(l, libs)} role={roles[l.path]} combining={combining}
                 first={i === 0} actions={{
@@ -318,14 +380,17 @@ export function LibrariesPage() {
               </DialogButton>
             </>
           )}
-          {search}
         </Focusable>
       </>
     );
   }
   let panel: ReactNode = <div className="rt-detail rt-searching"><Lens /></div>;
   if (onNew && newLib) panel = <NewDetail lib={newLib} />;
-  else if (libs && detail) panel = <Detail lib={detail} note={remark(detail, libs, main ?? null, !!chosen, roles[detail.path])} />;
+  else if (onAll && libs) panel = <AllDetail libs={libs} main={main} place={newLib} />;
+  else if (libs && detail) {
+    const note = several && organize ? remark(detail, libs, main, !!chosen, roles[detail.path]) : null;
+    panel = <Detail lib={detail} note={note} />;
+  }
   return (
     <Page searchBar={false}>
       <Focusable className="rt-libs" flow-children="row">
