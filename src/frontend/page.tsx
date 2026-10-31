@@ -239,7 +239,7 @@ export function GamesPage() {
   let body: ReactNode;
   if (!s.systems) body = <SteamSpinner />;
   else if (s.query.trim()) body = <Scroll><Results /></Scroll>;
-  else if (available.length === 0) body = <Scroll><div className="rt-empty">No system has both ROMs and an emulator.</div></Scroll>;
+  else if (available.length === 0) body = <Scroll><div className="rt-empty">No ROMs found for the installed emulators.</div></Scroll>;
   else body = (
     <Tabs
       activeTab={s.appsTab ? APPS : s.systemId ?? available[0].id}
