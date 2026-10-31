@@ -1,19 +1,20 @@
-import { DialogButton, Focusable, SteamSpinner } from "@decky/ui";
+import { DialogButton, Focusable, Navigation, SteamSpinner } from "@decky/ui";
 import { ReactNode, useEffect, useState } from "react";
 import { Page, formatSize, openGames } from "./page";
 import { SAMPLE_PLACES, Scenario, sampleLibraries } from "./samples";
+import { refresh } from "./store";
 import {
   DriveKind, Library, NewLibrary, combineLibraries, createLibrary, findLibraries, getNewLibraries, pickLibrary,
 } from "./tiles";
 
 export const LIBRARIES_ROUTE = "/rom-library/libraries";
 
-// The systems the detail lists. A last cell counts the others.
+// The panel shows 10 systems at most. With more, the last cell counts the others.
 const SHOWN = 10;
 // The search stays on screen 1 s at least. A faster scan would only flash it.
 const SEARCH_MS = 1000;
 
-// A line icon on a 24px grid, in the text's colour.
+// Draws a line icon on a 24px grid in the text's colour.
 function Glyph({ children }: { children: ReactNode }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
@@ -47,7 +48,7 @@ const DRIVE: Record<DriveKind, ReactNode> = {
   ),
 };
 
-// A lens over the plugin's four tiles, shown while the scan runs.
+// Draws a lens over the plugin's four tiles. The panel shows it while the scan runs.
 function Lens() {
   return (
     <svg className="rt-lens" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round">
@@ -65,7 +66,22 @@ function Lens() {
 
 const count = (n: number) => n.toLocaleString("en-US");
 
-// The name of a library's drive. Two libraries on one drive add their top folder, such as
+// Open Library sets it until the user chooses a library. The page then uses a single folder without a
+// question.
+let firstUse = false;
+
+export function openLibraries(first = false) {
+  firstUse = first;
+  Navigation.Navigate(LIBRARIES_ROUTE);
+  Navigation.CloseSideMenus();
+}
+
+// Opens the games once the backend reads the chosen folders.
+function done(change: Promise<void>) {
+  change.then(refresh).then(openGames, () => undefined);
+}
+
+// Returns the name of a library's drive. Two libraries on one drive add their top folder, such as
 // Internal Storage · Downloads.
 function label(lib: Library, libs: Library[]): string {
   const shared = libs.filter((l) => l.drive.name === lib.drive.name).length > 1;
@@ -75,20 +91,20 @@ function label(lib: Library, libs: Library[]): string {
 type Role = "main" | "included";
 const FS_NAME: Record<string, string> = { exfat: "exFAT", vfat: "FAT32", ntfs: "NTFS", ntfs3: "NTFS" };
 
-// The library with the most games among those that can hold links.
+// Returns the library with the most games among those that hold links.
 function recommended(libs: Library[]): Library | null {
   return libs.filter((l) => l.links).sort((a, b) => b.games - a.games)[0] ?? null;
 }
 
 // A library barely overlaps the main one when 5% of its games or fewer belong to systems the main
-// library also has. A combined library leaves those games out.
+// library also has. ES-DE leaves those games out of a combined library.
 function fits(lib: Library, main: Library): boolean {
   const theirs = new Map(main.systems.map((s) => [s.id, s.games]));
   const shared = lib.systems.reduce((n, s) => n + Math.min(s.games, theirs.get(s.id) ?? 0), 0);
   return shared * 20 <= lib.games;
 }
 
-// The remark under a library's systems, when one applies. 'chosen' tells that the user set a main
+// Returns the remark under a library's systems, or null. 'chosen' is true once the user set a main
 // library.
 function remark(lib: Library, libs: Library[], main: Library | null, chosen: boolean, role?: Role): ReactNode {
   if (!main) {
@@ -105,8 +121,8 @@ function remark(lib: Library, libs: Library[], main: Library | null, chosen: boo
     ? <><strong>Tip:</strong> include this library in the main one to see all your games together.</> : null;
 }
 
-// A library in the list: its drive, then its number of games. Once a main library is set, the rows
-// show their role alone: a badge on the main one, a word on the included ones.
+// Shows a library in the list: its drive, then its number of games. Once the user sets a main library,
+// the rows show their role alone: a badge on the main one, a word on the included ones.
 function LibraryRow({ lib, name, role, combining, first, actions }:
   { lib: Library; name: string; role?: Role; combining: boolean; first: boolean; actions: object }) {
   let end: ReactNode = count(lib.games);
@@ -121,7 +137,7 @@ function LibraryRow({ lib, name, role, combining, first, actions }:
   );
 }
 
-// The drive's icon, its name and the library's path, at the top of the panel.
+// Shows the drive's icon, its name and the library's path at the top of the panel.
 function Head({ drive, path }: { drive: Library["drive"]; path: string }) {
   return (
     <>
@@ -132,7 +148,7 @@ function Head({ drive, path }: { drive: Library["drive"]; path: string }) {
   );
 }
 
-// The systems in two columns, with their games when the library has some.
+// Lists the systems in two columns, with their games when the library has some.
 function Systems({ systems }: { systems: { id: string; name: string; games?: number }[] }) {
   const shown = systems.length > SHOWN ? systems.slice(0, SHOWN - 1) : systems;
   return (
@@ -150,8 +166,8 @@ function Systems({ systems }: { systems: { id: string; name: string; games?: num
   );
 }
 
-// The focused library: its drive, its full path, the tool that set it and its systems, in one
-// column right of the drive's icon. The path tells apart two libraries on one drive.
+// Shows the focused library right of the drive's icon: its drive, its path, its numbers and its
+// systems. The path tells apart two libraries on one drive.
 function Detail({ lib, note }: { lib: Library; note: ReactNode }) {
   const systems = [...lib.systems].sort((a, b) => b.games - a.games);
   return (
@@ -169,7 +185,7 @@ function Detail({ lib, note }: { lib: Library; note: ReactNode }) {
   );
 }
 
-// The library Create a New Library would make: its drive, its path, the drive's free space and a
+// Shows the library Create a New Library makes: its drive, its path, the drive's free space and a
 // folder per system.
 function NewDetail({ lib }: { lib: NewLibrary }) {
   return (
@@ -185,8 +201,8 @@ function NewDetail({ lib }: { lib: NewLibrary }) {
   );
 }
 
-// What Use All makes: the main library, or a new one when no library holds links, with the
-// systems and games of every library.
+// Shows what Use All makes: the main library, or a new one when no library holds links. The numbers
+// and the systems add up every library.
 function AllDetail({ libs, main, place }: { libs: Library[]; main: Library | null; place: NewLibrary | null }) {
   const games = new Map<string, { id: string; name: string; games: number }>();
   for (const l of libs) {
@@ -211,14 +227,14 @@ function AllDetail({ libs, main, place }: { libs: Library[]; main: Library | nul
   );
 }
 
-// Shows a scenario's sample libraries in place of the scan, to review the page: "searching", "none",
-// "one", "several", "exfat" or "organizer". null runs the scan.
+// A scenario's sample libraries replace the scan, to review each screen: "searching", "none", "one",
+// "several", "exfat" or "organizer". null runs the scan.
 const SCENARIO: Scenario | null = null;
 
-// The ROM folders the scan found, the largest first. Without a folder, the page offers a new
-// library. One folder becomes the main library. Several are all used, or open the organizer, where X
-// sets the main library and the included ones. The list shows each folder's drive and games. The
-// panel shows the focused one in full.
+// Lists the ROM folders the scan found, the largest first, with their drive and games. The panel
+// shows the focused one in full. Without a folder, the page offers a new library. One folder becomes
+// the main library. Use All takes several folders. Organize… opens the organizer: X sets the main
+// library and the included ones.
 export function LibrariesPage() {
   const [libs, setLibs] = useState<Library[] | null>(null);
   const [shown, setShown] = useState<string | null>(null);
@@ -244,6 +260,9 @@ export function LibrariesPage() {
     // The new library comes with the scan: Create a New Library takes the focus when it shows.
     const where = SCENARIO ? Promise.resolve(SAMPLE_PLACES) : getNewLibraries().catch(() => []);
     Promise.all([scan, where, delay]).then(([found, where]) => {
+      const first = firstUse;
+      firstUse = false;
+      if (first && !SCENARIO && found.length === 1) return done(pickLibrary(found[0].path));
       setPlaces(where);
       setPlace(0);
       const sorted = [...found].sort((a, b) => b.games - a.games);
@@ -253,7 +272,7 @@ export function LibrariesPage() {
   }, []);
   const detail = libs?.find((l) => l.path === shown) ?? libs?.[0];
   const newLib = places[place] ?? null;
-  // The main library: the one the user set, else the recommended one.
+  // The main library is the one the user set, else the recommended one.
   const chosen = Object.keys(roles).find((p) => roles[p] === "main");
   const main = libs?.find((l) => l.path === chosen) ?? (libs && recommended(libs)) ?? null;
   const included = Object.keys(roles).filter((p) => roles[p] === "included");
@@ -273,16 +292,15 @@ export function LibrariesPage() {
   }
 
   function use(lib: Library) {
-    const done = combining && main ? combineLibraries(main.path, included) : pickLibrary(lib.path);
-    done.then(openGames, () => undefined);
+    done(combining && main ? combineLibraries(main.path, included) : pickLibrary(lib.path));
   }
 
   // Use All includes every library in the main one, or in a new one when none holds links.
   function useAll() {
     if (!libs) return;
     const others = libs.filter((l) => l !== main).map((l) => l.path);
-    const done = main ? combineLibraries(main.path, others) : newLib ? createLibrary(newLib.path, others) : null;
-    done?.then(openGames, () => undefined);
+    if (main) done(combineLibraries(main.path, others));
+    else if (newLib) done(createLibrary(newLib.path, others));
   }
 
   const changeDrive = {
@@ -302,7 +320,7 @@ export function LibrariesPage() {
           <DialogButton className="rt-new" disabled={!newLib}
 	    preferredFocus={true}
             onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
-            onClick={() => newLib && createLibrary(newLib.path, []).then(openGames, () => undefined)} {...changeDrive}>
+            onClick={() => newLib && done(createLibrary(newLib.path, []))} {...changeDrive}>
             Create a New Library
           </DialogButton>
           {newLib && <p className="rt-libs-note">The new library will feature per-console folders to hold your ROMS.</p>}
@@ -374,7 +392,7 @@ export function LibrariesPage() {
               <p className="rt-libs-note rt-libs-or">Or create a main library capable of including these.</p>
               <DialogButton className="rt-new" disabled={!newLib}
                 onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
-                onClick={() => newLib && createLibrary(newLib.path, libs.map((l) => l.path)).then(openGames, () => undefined)}
+                onClick={() => newLib && done(createLibrary(newLib.path, libs.map((l) => l.path)))}
                 {...changeDrive}>
                 Create a Main Library
               </DialogButton>

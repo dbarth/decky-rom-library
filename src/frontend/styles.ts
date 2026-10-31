@@ -209,15 +209,15 @@ export const CSS = `
   text-box: trim-both cap alphabetic; }
 /* A note under a row, in the rows' type. */
 .rt-prop-note { margin: 16px 12px; font-size: var(--rt-body); line-height: 1.5; color: var(--rt-ink); }
-/* The libraries the scan found: the title, the list and the buttons on the left, the focused
-   library in full on the right. The left title shares its baseline with the panel's. */
+/* The libraries page puts the title, the list and the buttons on the left, and the focused library
+   in full on the right. The left title shares its baseline with the panel's. */
 .rt-libs { height: 100%; display: flex; gap: 24px; padding: 0 2.8vw; box-sizing: border-box; }
 .rt-libs-side { flex: none; width: 340px; display: flex; flex-direction: column; padding-top: 48px; }
 .rt-libs-side h2 { margin: 0 0 24px; font-size: var(--rt-title); font-weight: 800; line-height: 1.15; color: #fff; }
 .rt-libs-side p { margin: 0 0 20px; font-size: var(--rt-body); line-height: 1.45; color: var(--rt-dim); }
 .rt-libs-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
   padding-bottom: 56px; scroll-padding: 0 0 56px; }
-/* A row: the drive's name in bold, its games or its role at the right. */
+/* A row shows the drive's name in bold, and its games or its role at the right. */
 .rt-lib { flex: none; display: flex; align-items: baseline; gap: 12px; padding: 12px 16px; border-radius: 4px;
   background: var(--rt-card); }
 .rt-lib.rt-focus { background: #3d4450; }
@@ -253,9 +253,9 @@ export const CSS = `
 .rt-system-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rt-system-count { margin-left: auto; color: var(--rt-dim); }
 .rt-system-more { color: var(--rt-dim); }
-/* A remark at the foot of the panel, 24px at least under the systems: Recommended, Tip or Note in the
-   text's colour, then the advice. The panel's padding keeps it as far from the bottom as the name
-   is from the top. */
+/* A remark sits at the foot of the panel, 24px at least under the systems. Recommended, Tip or Note
+   comes first, in the text's colour. The panel's padding keeps the remark as far from the bottom as
+   the name is from the top. */
 .rt-detail > .rt-detail-note { grid-row: -2; align-self: end; margin: 24px 0 0; font-size: var(--rt-body); line-height: 1.45;
   color: var(--rt-dim); }
 .rt-detail-note strong { color: var(--rt-ink); }

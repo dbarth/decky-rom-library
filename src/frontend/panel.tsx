@@ -3,6 +3,7 @@ import {
   DialogHeader, Field, Focusable, ModalRoot, Navigation, PanelSection, PanelSectionRow, Router, showModal,
 } from "@decky/ui";
 import { ReactNode, useEffect, useReducer, useState } from "react";
+import { LIBRARIES_ROUTE, openLibraries } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, openGames } from "./page";
 import { TileToggle } from "./properties";
 import { addGame, findGame, loadGames, quit, refresh, state, update, useStore } from "./store";
@@ -211,9 +212,14 @@ function useGames(route: string): { running: ReactNode; page: ReactNode } {
   };
 }
 
-// The Quick Access panel: what the plugin does under the title, a button to the full-screen page
-// unless it is open already, the tab under the panel, then the games. One of our games that runs
-// outside the library takes the panel alone. Opening the panel brings the tiles in line with the ROM folders.
+// Opens the library. Until the user chooses a library, opens the libraries page.
+function openLibrary() {
+  getPlaces().then((p) => (p.roots ? openGames() : openLibraries(true)), () => openGames());
+}
+
+// Shows the Quick Access panel: what the plugin does, Open Library when the library is closed, the
+// library's tab, Scan Libraries…, then the games. One of our games that runs outside the library takes
+// the panel alone. Opening the panel brings the tiles in line with the ROM folders.
 export function Panel() {
   const route = mainRoute();
   useEffect(() => {
@@ -239,11 +245,18 @@ export function Panel() {
       {!inLibrary && (
         <PanelSection>
           <PanelSectionRow>
-            <ButtonItem layout="below" onClick={() => openGames()}>Open Library</ButtonItem>
+            <ButtonItem layout="below" onClick={openLibrary}>Open Library</ButtonItem>
           </PanelSectionRow>
         </PanelSection>
       )}
       {route === GAMES_ROUTE && <Section />}
+      {route !== LIBRARIES_ROUTE && (
+        <PanelSection>
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={() => openLibraries()}>Scan Libraries…</ButtonItem>
+          </PanelSectionRow>
+        </PanelSection>
+      )}
       {games.running}
       {games.page}
     </>

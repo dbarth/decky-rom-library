@@ -196,17 +196,17 @@ export const uninstallRom = callable<[system: string, path: string], void>("unin
 export const quitGame = callable<[appid: number], "quit" | "killed" | null>("quit_game");
 // Moves a game into its system's folder and returns its path there.
 export const importGame = callable<[system: string, path: string], string>("import_game");
-export const getPlaces = callable<[], { downloads: string; loadout: boolean }>("places");
-// Looks for ROM folders in the known places.
+// 'roots' holds the ROM folders the user chose, the main one first. It is null until the user chooses.
+export const getPlaces = callable<[], { downloads: string; loadout: boolean; roots: string[] | null }>("places");
+// Returns the ROM folders in the places the tools and systems use.
 export const findLibraries = callable<[], Library[]>("find_libraries");
-// Makes the folder the ROM folder ROM Library reads.
+// Makes the folder the ROM folder ROM Library and ES-DE read.
 export const pickLibrary = callable<[path: string], void>("use_library");
-// A new library's creation, with a folder per system and a link per system of the included
-// libraries.
-// The places a new library can go, the default first: the internal storage, then each card or drive.
+// Returns where a new library can go: the internal storage first, then each card or drive.
 export const getNewLibraries = callable<[], NewLibrary[]>("new_libraries");
+// Makes a new library with a folder per system, then combines the included libraries into it.
 export const createLibrary = callable<[path: string, include: string[]], void>("create_library");
-// Links the systems of the included libraries into the main one.
+// Reads the main library and the included ones, and links the included systems the main one lacks.
 export const combineLibraries = callable<[main: string, include: string[]], void>("combine_libraries");
 export const getEmulatorSettings = callable<[system: string, path: string], EmulatorSettings | null>(
   "emulator_settings");

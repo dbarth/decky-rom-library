@@ -1,6 +1,6 @@
 import { Library, NewLibrary } from "./tiles";
 
-// Sample libraries for the libraries page's scenarios, to review each screen without a scan.
+// The libraries page shows these samples in its scenarios, to review each screen without a scan.
 export type Scenario = "searching" | "none" | "one" | "several" | "exfat" | "organizer";
 
 const systems = (list: [string, string, number][]) => list.map(([id, name, games]) => ({ id, name, games }));
@@ -25,7 +25,7 @@ const USB: Library = {
   systems: systems([["snes", "SNES", 12], ["gba", "GBA", 5], ["nes", "NES", 3]]),
 };
 
-// The libraries a scenario's scan finds.
+// Returns the libraries a scenario's scan finds.
 export function sampleLibraries(scenario: Scenario): Library[] {
   switch (scenario) {
     case "one": return [INTERNAL];
