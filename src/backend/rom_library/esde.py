@@ -33,6 +33,18 @@ ROM_DIRS = ("~/ROMs", "~/Emulation/roms")
 # mounts a card at /run/media/<user>/<label>, such as /run/media/steamos/MicroSD, and older
 # versions at /run/media/<device>, such as /run/media/mmcblk0p1.
 CARD_ROM_DIRS = ("/run/media/*/*/Emulation/roms", "/run/media/*/Emulation/roms")
+# Batocera's and ROCKNIX's folders for ES-DE's systems, by ES-DE's name, from Batocera's es_systems.yml
+# and ROCKNIX's config/emulators/*.conf of October 2026. Their hacks and MSU-1 folders, and ROCKNIX's
+# "games" for ScummVM, stay out.
+OTHER_FOLDERS = {
+    "amiga": ("amiga500",), "astrocde": ("astrocade",), "atarijaguar": ("jaguar",), "atarijaguarcd": ("jaguarcd",),
+    "atarilynx": ("lynx",), "atarixe": ("xegs",), "cdimono1": ("cdi",), "cdtv": ("amigacdtv",),
+    "colecovision": ("coleco",), "gc": ("gamecube",), "macintosh": ("mac",), "megadrivejp": ("megadrive-japan",),
+    "model3": ("segamodel3",), "moto": ("thomson",), "n3ds": ("3ds",), "neogeocd": ("neocd",),
+    "odyssey2": ("odyssey",), "oric": ("oricatmos",), "pico8": ("pico-8",), "plus4": ("cplus4",),
+    "sg-1000": ("sg1000",), "stv": ("st-v",), "supergrafx": ("sgfx",), "tg-cd": ("tg16cd",), "tic80": ("tic-80",),
+    "trs-80": ("trs80",), "vic20": ("c20",), "wonderswan": ("wswan",), "wonderswancolor": ("wswanc",),
+}
 # Directories a desktop session puts on PATH, for the systempath rules.
 SESSION_PATH = (
     "~/.local/bin", "~/bin", "/usr/local/bin", "/usr/bin", "/bin",
@@ -411,13 +423,18 @@ class EsDe:
                 cores.setdefault(name, paths)
         return emulators, cores
 
+    def system_folders(self, system, root):
+        """Return the folders of a system's games in a ROM directory: ES-DE's, then Batocera's and
+        ROCKNIX's."""
+        folder = os.path.normpath(self.expand(system["path"].replace("%ROMPATH%", root).replace("//", "/")))
+        return [folder] + [os.path.join(os.path.dirname(folder), name) for name in OTHER_FOLDERS.get(system["name"], ())]
+
     def system_dirs(self, system):
         """Return the folders of a system's games, one in each ROM directory that has it, or the
         first ROM directory's when none does. A link to another ROM directory's folder takes that
         folder's path, at the link's place in the list. The games of a combined system keep their
         paths."""
-        dirs = [os.path.normpath(self.expand(system["path"].replace("%ROMPATH%", root).replace("//", "/")))
-                for root in self.rom_dirs()]
+        dirs = [folder for root in self.rom_dirs() for folder in self.system_folders(system, root)]
         found = {}
         for folder in dirs:
             if os.path.isdir(folder):

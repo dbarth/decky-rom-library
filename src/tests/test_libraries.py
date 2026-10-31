@@ -151,6 +151,18 @@ class LibrariesTest(unittest.TestCase):
         self.assertEqual([g["path"] for g in self.lib.games("snes")],
                          [os.path.join(self.sd, "snes", f) for f in ("Super Metroid.sfc", "Zelda.sfc")])
 
+    def test_batocera_folders_count_and_link_under_esde_names(self):
+        batocera = os.path.join(self.usb, "roms")
+        touch(os.path.join(batocera, "gamecube/Wind Waker.rvz"), "x")
+        touch(os.path.join(batocera, "tic-80/Tiny.tic"), "x")
+        found = self.found()[batocera]
+        self.assertEqual(sorted(s["id"] for s in found["systems"]), ["gc", "nes", "tic80"])
+        self.lib.combine_libraries(self.h.roms, [batocera])
+        self.assertEqual(os.readlink(self.h.rom("gc")), os.path.join(batocera, "gamecube"))
+        self.assertEqual(os.readlink(self.h.rom("tic80")), os.path.join(batocera, "tic-80"))
+        self.assertEqual(self.lib.systems()["gc"]["roots"], [os.path.join(batocera, "gamecube")])
+        self.assertEqual([g["path"] for g in self.lib.games("gc")], [os.path.join(batocera, "gamecube/Wind Waker.rvz")])
+
     def test_a_tile_follows_its_game_to_the_new_main_folder(self):
         applied = {"name": "", "exe": "", "start_dir": "", "launch_options": ""}
         zelda, metroid = os.path.join(self.sd, "snes/Zelda.sfc"), os.path.join(self.sd, "snes/Super Metroid.sfc")

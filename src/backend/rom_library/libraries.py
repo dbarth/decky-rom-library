@@ -186,12 +186,13 @@ class Libraries:
         return found
 
     def system_folder(self, system, root):
-        return os.path.normpath(system["path"].replace("%ROMPATH%", root))
+        """Return ES-DE's folder of a system in a ROM directory."""
+        return self.esde.system_folders(system, root)[0]
 
     def find(self):
         """Return the folders that hold games, as Library in tiles.ts. A system's folder counts when it
-        holds a file with the system's extensions. A system's folder that links into another place
-        counts in that place alone."""
+        holds a file with the system's extensions, under ES-DE's name or Batocera's and ROCKNIX's. A
+        system's folder that links into another place counts in that place alone."""
         systems = self.esde.systems()
         places = self.places()
         reals = [os.path.realpath(p) for p in places]
@@ -201,13 +202,10 @@ class Libraries:
         for i, root in enumerate(places):
             counted = []
             for sid, s in systems.items():
-                folder = self.system_folder(s, root)
-                if not os.path.isdir(folder):
-                    continue
-                real = os.path.realpath(folder)
-                if os.path.islink(folder) and any(j != i and (real + "/").startswith(r + "/") for j, r in enumerate(reals)):
-                    continue
-                games = len(self.esde.scan(s, [folder]))
+                folders = [f for f in self.esde.system_folders(s, root) if os.path.isdir(f) and not (
+                    os.path.islink(f) and any(j != i and (os.path.realpath(f) + "/").startswith(r + "/")
+                                              for j, r in enumerate(reals)))]
+                games = len(self.esde.scan(s, folders)) if folders else 0
                 if games:
                     counted.append({"id": sid, "name": SHORT_NAMES.get(sid, s["fullname"]), "games": games})
             if not counted:
@@ -273,12 +271,12 @@ class Libraries:
         return out
 
     def link(self, main, include):
-        """Link each included system that the main folder lacks or holds empty. Return the links made."""
+        """Link each included system that the main folder lacks or holds empty, under ES-DE's name. The
+        included folder may have Batocera's or ROCKNIX's name. Return the links made."""
         made = []
         for sid, s in self.esde.systems().items():
             target = self.system_folder(s, main)
-            for root in include:
-                folder = self.system_folder(s, root)
+            for folder in (f for root in include for f in self.esde.system_folders(s, root)):
                 if not os.path.isdir(folder) or not self.esde.scan(s, [folder]):
                     continue
                 if os.path.lexists(target) and not is_placeholder(target):
