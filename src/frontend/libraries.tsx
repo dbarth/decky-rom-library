@@ -1,8 +1,8 @@
 import { DialogButton, Focusable, Navigation, SteamSpinner } from "@decky/ui";
 import { ReactNode, useEffect, useState } from "react";
-import { Page, formatSize, openGames } from "./page";
+import { GAMES_ROUTE, Page, formatSize, mainRoute, openGamesInPlace } from "./page";
 import { SAMPLE_PLACES, Scenario, sampleLibraries } from "./samples";
-import { refresh } from "./store";
+import { refresh, toast } from "./store";
 import {
   DriveKind, Library, NewLibrary, combineLibraries, createLibrary, findLibraries, getNewLibraries, pickLibrary,
 } from "./tiles";
@@ -69,16 +69,27 @@ const count = (n: number) => n.toLocaleString("en-US");
 // Open Library sets it until the user chooses a library. The page then uses a single folder without a
 // question.
 let firstUse = false;
+// The route the page opened over.
+let openedFrom = "";
 
 export function openLibraries(first = false) {
   firstUse = first;
+  openedFrom = mainRoute();
   Navigation.Navigate(LIBRARIES_ROUTE);
   Navigation.CloseSideMenus();
 }
 
-// Opens the games once the backend reads the chosen folders.
-function done(change: Promise<void>) {
-  change.then(refresh).then(openGames, () => undefined);
+// Leaves the page for the games and drops it from Steam's history: B on the games never returns to
+// it. Opened over the games, the page goes back to them.
+function leave() {
+  if (openedFrom === GAMES_ROUTE) Navigation.NavigateBack();
+  else openGamesInPlace();
+}
+
+// Opens the games once the backend reads the chosen folders. A failure shows in a toast under the
+// button's label, and the page stays.
+function done(label: string, change: Promise<void>) {
+  change.then(refresh).then(leave, (e) => toast(`${label}: ${e}`));
 }
 
 // Returns the name of a library's drive. Two libraries on one drive add their top folder, such as
@@ -266,7 +277,7 @@ export function LibrariesPage() {
     Promise.all([scan, where, delay]).then(([found, where]) => {
       const first = firstUse;
       firstUse = false;
-      if (first && !SCENARIO && found.length === 1) return done(pick(found[0].path));
+      if (first && !SCENARIO && found.length === 1) return done("Use This Library", pick(found[0].path));
       setPlaces(where);
       setPlace(0);
       const sorted = [...found].sort((a, b) => b.games - a.games);
@@ -296,15 +307,16 @@ export function LibrariesPage() {
   }
 
   function use(lib: Library) {
-    done(combining && main ? combine(main.path, included) : pick(lib.path));
+    if (combining && main) done("Combine Libraries", combine(main.path, included));
+    else done("Use This Library", pick(lib.path));
   }
 
   // Use All includes every library in the main one, or in a new one when none holds links.
   function useAll() {
     if (!libs) return;
     const others = libs.filter((l) => l !== main).map((l) => l.path);
-    if (main) done(combine(main.path, others));
-    else if (newLib) done(create(newLib.path, others));
+    if (main) done("Use All", combine(main.path, others));
+    else if (newLib) done("Use All", create(newLib.path, others));
   }
 
   const changeDrive = {
@@ -324,7 +336,7 @@ export function LibrariesPage() {
           <DialogButton className="rt-new" disabled={!newLib}
 	    preferredFocus={true}
             onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
-            onClick={() => newLib && done(create(newLib.path, []))} {...changeDrive}>
+            onClick={() => newLib && done("Create a New Library", create(newLib.path, []))} {...changeDrive}>
             Create a New Library
           </DialogButton>
           {newLib && <p className="rt-libs-note">The new library will feature per-console folders to hold your ROMS.</p>}
@@ -396,7 +408,7 @@ export function LibrariesPage() {
               <p className="rt-libs-note rt-libs-or">Or create a main library capable of including these.</p>
               <DialogButton className="rt-new" disabled={!newLib}
                 onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
-                onClick={() => newLib && done(create(newLib.path, libs.map((l) => l.path)))}
+                onClick={() => newLib && done("Create a Main Library", create(newLib.path, libs.map((l) => l.path)))}
                 {...changeDrive}>
                 Create a Main Library
               </DialogButton>

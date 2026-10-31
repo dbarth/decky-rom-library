@@ -1,6 +1,6 @@
 import {
   ConfirmModal, DialogButton, Focusable, GamepadButton, Menu, MenuItem, MenuSeparator, ModalRoot, Navigation,
-  SteamSpinner, Tabs, TextField, showContextMenu, showModal,
+  Router, SteamSpinner, Tabs, TextField, showContextMenu, showModal,
 } from "@decky/ui";
 import type { GamepadEvent } from "@decky/ui";
 import { CSSProperties, ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -115,6 +115,27 @@ function Tab({ children }: { children: ReactNode }) {
 // Opens the page where it was left.
 export function openGames() {
   Navigation.Navigate(GAMES_ROUTE);
+  Navigation.CloseSideMenus();
+}
+
+// Steam's main window history. @decky/ui does not type it.
+function mainHistory() {
+  const main = Router.WindowStore?.GamepadUIMainWindowInstance as {
+    m_history?: { location?: { pathname?: string }; replace?: (path: string) => void };
+  };
+  return main?.m_history;
+}
+
+// The route of Steam's main window, such as /library/app/<appid> or /rom-library/game.
+export function mainRoute(): string {
+  return mainHistory()?.location?.pathname ?? "";
+}
+
+// Opens the games in place of the page on screen, which leaves Steam's history.
+export function openGamesInPlace() {
+  const history = mainHistory();
+  if (history?.replace) history.replace(GAMES_ROUTE);
+  else Navigation.Navigate(GAMES_ROUTE);
   Navigation.CloseSideMenus();
 }
 

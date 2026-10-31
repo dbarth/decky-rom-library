@@ -6,20 +6,13 @@ import {
 import { ReactNode, useEffect, useReducer, useRef, useState } from "react";
 import { takeFocus } from "./focus";
 import { LIBRARIES_ROUTE, openLibraries } from "./libraries";
-import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, openGames } from "./page";
+import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, mainRoute, openGames } from "./page";
 import { addGame, findGame, loadGames, quit, refresh, state, update, useStore } from "./store";
 import { PANEL_CSS } from "./styles";
 import { APPS, AppInfo, Game, describeApp, getPlaces } from "./tiles";
 
 // Loadout's page, when its plugin is installed.
 const LOADOUT_ROUTE = "/loadout";
-
-// The route of Steam's main window, such as /library/app/<appid> or /rom-library/game. @decky/ui
-// does not type its history.
-function mainRoute(): string {
-  const main = Router.WindowStore?.GamepadUIMainWindowInstance as { m_history?: { location?: { pathname?: string } } };
-  return main?.m_history?.location?.pathname ?? "";
-}
 
 // What the plugin knows of an app: undefined while it asks.
 function useAppInfo(appid: number | null): AppInfo | null | undefined {

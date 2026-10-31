@@ -85,7 +85,7 @@ function atLeast<T>(ms: number, work: Promise<T>): Promise<T> {
   return Promise.all([work, new Promise((r) => setTimeout(r, ms))]).then(([v]) => v);
 }
 
-function toast(body: string) {
+export function toast(body: string) {
   toaster.toast({ title: "ROM Library", body });
 }
 
