@@ -230,6 +230,10 @@ function AllDetail({ libs, main, place }: { libs: Library[]; main: Library | nul
 // A scenario's sample libraries replace the scan, to review each screen: "searching", "none", "one",
 // "several", "exfat" or "organizer". null runs the scan.
 const SCENARIO: Scenario | null = null;
+// A scenario's samples name folders the device lacks: its choices open the games and change nothing.
+const pick: typeof pickLibrary = SCENARIO ? async () => undefined : pickLibrary;
+const combine: typeof combineLibraries = SCENARIO ? async () => undefined : combineLibraries;
+const create: typeof createLibrary = SCENARIO ? async () => undefined : createLibrary;
 
 // Lists the ROM folders the scan found, the largest first, with their drive and games. The panel
 // shows the focused one in full. Without a folder, the page offers a new library. One folder becomes
@@ -262,7 +266,7 @@ export function LibrariesPage() {
     Promise.all([scan, where, delay]).then(([found, where]) => {
       const first = firstUse;
       firstUse = false;
-      if (first && !SCENARIO && found.length === 1) return done(pickLibrary(found[0].path));
+      if (first && !SCENARIO && found.length === 1) return done(pick(found[0].path));
       setPlaces(where);
       setPlace(0);
       const sorted = [...found].sort((a, b) => b.games - a.games);
@@ -292,15 +296,15 @@ export function LibrariesPage() {
   }
 
   function use(lib: Library) {
-    done(combining && main ? combineLibraries(main.path, included) : pickLibrary(lib.path));
+    done(combining && main ? combine(main.path, included) : pick(lib.path));
   }
 
   // Use All includes every library in the main one, or in a new one when none holds links.
   function useAll() {
     if (!libs) return;
     const others = libs.filter((l) => l !== main).map((l) => l.path);
-    if (main) done(combineLibraries(main.path, others));
-    else if (newLib) done(createLibrary(newLib.path, others));
+    if (main) done(combine(main.path, others));
+    else if (newLib) done(create(newLib.path, others));
   }
 
   const changeDrive = {
@@ -320,7 +324,7 @@ export function LibrariesPage() {
           <DialogButton className="rt-new" disabled={!newLib}
 	    preferredFocus={true}
             onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
-            onClick={() => newLib && done(createLibrary(newLib.path, []))} {...changeDrive}>
+            onClick={() => newLib && done(create(newLib.path, []))} {...changeDrive}>
             Create a New Library
           </DialogButton>
           {newLib && <p className="rt-libs-note">The new library will feature per-console folders to hold your ROMS.</p>}
@@ -392,7 +396,7 @@ export function LibrariesPage() {
               <p className="rt-libs-note rt-libs-or">Or create a main library capable of including these.</p>
               <DialogButton className="rt-new" disabled={!newLib}
                 onGamepadFocus={() => setOnNew(true)} onGamepadBlur={() => setOnNew(false)}
-                onClick={() => newLib && done(createLibrary(newLib.path, libs.map((l) => l.path)))}
+                onClick={() => newLib && done(create(newLib.path, libs.map((l) => l.path)))}
                 {...changeDrive}>
                 Create a Main Library
               </DialogButton>
