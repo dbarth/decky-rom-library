@@ -1,11 +1,11 @@
 import {
   ButtonItem, DialogBody, DialogBodyText, DialogButton, DialogButtonPrimary, DialogButtonSecondary, DialogFooter,
-  DialogHeader, Field, Focusable, ModalRoot, Navigation, PanelSection, PanelSectionRow, Router, showModal,
+  DialogHeader, Field, Focusable, ModalRoot, Navigation, PanelSection, PanelSectionRow, Router, gamepadDialogClasses,
+  showModal,
 } from "@decky/ui";
 import { ReactNode, useEffect, useReducer, useState } from "react";
 import { LIBRARIES_ROUTE, openLibraries } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, openGames } from "./page";
-import { TileToggle } from "./properties";
 import { addGame, findGame, loadGames, quit, refresh, state, update, useStore } from "./store";
 import { PANEL_CSS } from "./styles";
 import { APPS, AppInfo, Game, describeApp, getPlaces } from "./tiles";
@@ -29,9 +29,39 @@ function useAppInfo(appid: number | null): AppInfo | null | undefined {
   return info;
 }
 
-// The library's shown tab: its name, how many games or apps it holds, and a way to add more. A
-// system's tab names the emulator its games start in.
-function Section() {
+// Says what the plugin does, under the panel's title.
+function Intro() {
+  return (
+    <div className={`${gamepadDialogClasses.FieldDescription} rt-intro`}>
+      Play and manage console games in your Steam Library
+    </div>
+  );
+}
+
+// Opens the library. Until the user chooses a library, opens the libraries page.
+function openLibrary() {
+  getPlaces().then((p) => (p.roots ? openGames() : openLibraries(true)), () => openGames());
+}
+
+function OpenLibrary() {
+  return (
+    <PanelSectionRow>
+      <ButtonItem layout="below" onClick={openLibrary}>Open Library</ButtonItem>
+    </PanelSectionRow>
+  );
+}
+
+function ScanLibraries() {
+  return (
+    <PanelSectionRow>
+      <ButtonItem layout="below" onClick={() => openLibraries()}>Scan Libraries…</ButtonItem>
+    </PanelSectionRow>
+  );
+}
+
+// Shows the tab's rows: a system's games and Add a Game…, or the emulators and Add Emulators… when
+// Loadout is installed.
+function TabRows() {
   const s = useStore();
   const [places, setPlaces] = useState<{ downloads: string; loadout: boolean } | null>(null);
   useEffect(() => {
@@ -40,9 +70,9 @@ function Section() {
   if (s.appsTab) {
     const apps = s.games[APPS];
     return (
-      <PanelSection title="Emulators">
+      <>
         <PanelSectionRow>
-          <Field label="Apps">{apps ? apps.length : "…"}</Field>
+          <Field label="Emulators">{apps ? apps.length : "…"}</Field>
         </PanelSectionRow>
         {places?.loadout && (
           <PanelSectionRow>
@@ -54,18 +84,15 @@ function Section() {
             </ButtonItem>
           </PanelSectionRow>
         )}
-      </PanelSection>
+      </>
     );
   }
   const system = s.systems?.find((x) => x.id === s.systemId);
   if (!system) return null;
   return (
-    <PanelSection title={system.name}>
+    <>
       <PanelSectionRow>
-        <Field label="Emulator">{system.emulator}</Field>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <Field label="Games">{system.games}</Field>
+        <Field label={system.name}>{system.games}</Field>
       </PanelSectionRow>
       {places && (
         <PanelSectionRow>
@@ -78,7 +105,7 @@ function Section() {
           </ButtonItem>
         </PanelSectionRow>
       )}
-    </PanelSection>
+    </>
   );
 }
 
@@ -134,47 +161,68 @@ function confirmQuit(game: Game, appid: number) {
   showModal(<QuitModal game={game} appid={appid} />);
 }
 
-// A game's state, a link to its Properties and its tile's toggle, and Quit Game for the game that
-// runs under the app id running. Steam gives the focus to the panel's first row.
-function GameLink({ shown, running }: { shown: GameRef; running: number | null }) {
-  const s = useStore();
-  const game = findGame(shown.system, shown.path);
+// Returns a game of the library, and loads its system's games when the store lacks them.
+function useGame(shown: GameRef): Game | undefined {
+  useStore();
   useEffect(() => {
     if (!state.games[shown.system]) loadGames(shown.system);
   }, [shown.path]);
-  if (!game) return null;
-  const quitting = s.busy[game.path] === "Quitting…";
+  return findGame(shown.system, shown.path);
+}
+
+function GameName({ game }: { game: Game }) {
   return (
-    <PanelSection title={running != null ? "Running Game" : "Library Page"}>
+    <PanelSectionRow>
+      <Field label={<span className="rt-gamename">{game.name}</span>} />
+    </PanelSectionRow>
+  );
+}
+
+function PropertiesButton({ shown }: { shown: GameRef }) {
+  return (
+    <PanelSectionRow>
+      <ButtonItem layout="below" onClick={() => {
+        update({ selected: shown });
+        Navigation.CloseSideMenus();
+        Navigation.Navigate(PROPERTIES_ROUTE);
+      }}>
+        Properties…
+      </ButtonItem>
+    </PanelSectionRow>
+  );
+}
+
+// Shows the game of the page under the panel, with Properties….
+function GamePage({ shown }: { shown: GameRef }) {
+  const game = useGame(shown);
+  if (!game) return null;
+  return (
+    <PanelSection>
+      <GameName game={game} />
+      <PropertiesButton shown={shown} />
+    </PanelSection>
+  );
+}
+
+// Shows the game that runs under the app id, with Properties… and Quit Game. Steam gives the focus to
+// the panel's first row.
+function RunningGame({ shown, appid }: { shown: GameRef; appid: number }) {
+  const game = useGame(shown);
+  const quitting = useStore().busy[shown.path] === "Quitting…";
+  if (!game) return null;
+  return (
+    <PanelSection title="Running Game">
+      <GameName game={game} />
+      <PropertiesButton shown={shown} />
       <PanelSectionRow>
-        <Field label={<span className="rt-gamename">{game.name}</span>} />
+        <Field childrenLayout="below" childrenContainerWidth="max">
+          <DialogButton className={quitting ? "rt-quit rt-pending" : "rt-quit"} disabled={quitting}
+            onClick={() => confirmQuit(game, appid)}>
+            <span className="rt-text">Quit Game</span>
+            {quitting && <Spinner />}
+          </DialogButton>
+        </Field>
       </PanelSectionRow>
-      <PanelSectionRow>
-        {/* Steam tracks a running game by its tile, which must stay while the game runs. */}
-        <TileToggle system={shown.system} game={game} label="Show in Steam"
-          disabled={running != null && game.appid != null} />
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={() => {
-          update({ selected: shown });
-          Navigation.CloseSideMenus();
-          Navigation.Navigate(PROPERTIES_ROUTE);
-        }}>
-          Properties…
-        </ButtonItem>
-      </PanelSectionRow>
-      {running != null && (
-        <PanelSectionRow>
-          <Field childrenLayout="below" childrenContainerWidth="max">
-            <style>{PANEL_CSS}</style>
-            <DialogButton className={quitting ? "rt-quit rt-pending" : "rt-quit"} disabled={quitting}
-              onClick={() => confirmQuit(game, running)}>
-              <span className="rt-text">Quit Game</span>
-              {quitting && <Spinner />}
-            </DialogButton>
-          </Field>
-        </PanelSectionRow>
-      )}
     </PanelSection>
   );
 }
@@ -193,10 +241,10 @@ function useRunningApp() {
   return Router.MainRunningApp;
 }
 
-// The section of the game that runs, and the section of the game of the page under the panel when
-// it is another one: the game of our game page or its Properties, or the tile of Steam's page. The
-// store's change at the end of Quit Game draws them again without the game.
-function useGames(route: string): { running: ReactNode; page: ReactNode } {
+// Returns the game of ours that runs, with its app id, and the game of the page under the panel: our
+// game page's, or the tile of Steam's page. The store's change at the end of Quit Game draws the panel
+// again without the game.
+function useGames(route: string): { running: { shown: GameRef; appid: number } | null; page: GameRef | null } {
   useStore();
   const pageId = Number(route.match(/^\/library\/app\/(\d+)/)?.[1]) || null;
   const app = useRunningApp();
@@ -204,61 +252,48 @@ function useGames(route: string): { running: ReactNode; page: ReactNode } {
   const runningInfo = useAppInfo(app ? Number(app.appid) : null);
   // useAppInfo keeps the last app's info once no game runs.
   const playing = app ? gameOf(runningInfo, state.playing) : null;
-  const ours = route === GAME_ROUTE || route === PROPERTIES_ROUTE;
-  const shown = ours ? state.selected : gameOf(pageInfo, null);
   return {
-    running: app && playing && <GameLink shown={playing} running={Number(app.appid)} />,
-    page: shown && shown.path !== playing?.path && <GameLink shown={shown} running={null} />,
+    running: app && playing ? { shown: playing, appid: Number(app.appid) } : null,
+    page: route === GAME_ROUTE ? state.selected : gameOf(pageInfo, null),
   };
 }
 
-// Opens the library. Until the user chooses a library, opens the libraries page.
-function openLibrary() {
-  getPlaces().then((p) => (p.roots ? openGames() : openLibraries(true)), () => openGames());
-}
-
-// Shows the Quick Access panel: what the plugin does, Open Library when the library is closed, the
-// library's tab, Scan Libraries…, then the games. One of our games that runs outside the library takes
-// the panel alone. Opening the panel brings the tiles in line with the ROM folders.
+// Shows the Quick Access panel in one of four modes. A running game of ours takes the panel alone,
+// with Properties… and Quit Game. A game page shows its game's Properties…. The library and a game's
+// Properties show the tab's tools and Scan Libraries…. Elsewhere, the panel shows Open Library and
+// Scan Libraries…. The libraries page shows the intro alone. Opening the panel brings the tiles in
+// line with the ROM folders.
 export function Panel() {
   const route = mainRoute();
   useEffect(() => {
     refresh();
   }, []);
-  const games = useGames(route);
-  const inLibrary = route.startsWith(GAMES_ROUTE);
-  if (games.running && !inLibrary) {
-    return (
-      <>
-        {games.running}
-        {games.page}
-      </>
+  const { running, page } = useGames(route);
+  let tools: ReactNode;
+  if (running) {
+    tools = <RunningGame shown={running.shown} appid={running.appid} />;
+  } else if (page) {
+    tools = <GamePage shown={page} />;
+  } else if (route.startsWith(GAMES_ROUTE)) {
+    tools = route !== LIBRARIES_ROUTE && (
+      <PanelSection>
+        <TabRows />
+        <ScanLibraries />
+      </PanelSection>
+    );
+  } else {
+    tools = (
+      <PanelSection>
+        <OpenLibrary />
+        <ScanLibraries />
+      </PanelSection>
     );
   }
   return (
     <>
-      <PanelSection>
-        <PanelSectionRow>
-          <Field description="Play, manage and surface console games in your Steam Library" />
-        </PanelSectionRow>
-      </PanelSection>
-      {!inLibrary && (
-        <PanelSection>
-          <PanelSectionRow>
-            <ButtonItem layout="below" onClick={openLibrary}>Open Library</ButtonItem>
-          </PanelSectionRow>
-        </PanelSection>
-      )}
-      {route === GAMES_ROUTE && <Section />}
-      {route !== LIBRARIES_ROUTE && (
-        <PanelSection>
-          <PanelSectionRow>
-            <ButtonItem layout="below" onClick={() => openLibraries()}>Scan Libraries…</ButtonItem>
-          </PanelSectionRow>
-        </PanelSection>
-      )}
-      {games.running}
-      {games.page}
+      <style>{PANEL_CSS}</style>
+      {!running && <Intro />}
+      {tools}
     </>
   );
 }

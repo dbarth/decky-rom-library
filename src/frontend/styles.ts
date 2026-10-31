@@ -4,6 +4,9 @@ import { gamepadTabbedPageClasses } from "@decky/ui";
 // button and the running game's name. The panel shares the document with Steam's pages, so it takes
 // these rules alone.
 export const PANEL_CSS = `
+/* The intro sits in the sections' 16px gutter, 16px under the title as Decky places a plugin's
+   content. Decky's title row is sticky, on the panel's background: it hides a higher intro. */
+.rt-intro { margin: 0; padding: 0 16px; }
 /* The running game's name stands above its section's grey title. */
 .rt-gamename { font-size: 18px; font-weight: 600; color: #fff; }
 /* The spinner takes the colour of the text: dark on a focused button, light elsewhere. */
