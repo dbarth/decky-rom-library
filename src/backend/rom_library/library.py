@@ -14,6 +14,7 @@ from .dolphin import Dolphin
 from .eden import Eden
 from .esde import EsDe, Unresolved, unquote, words
 from .jsonfile import read_json, write_json
+from .libraries import Libraries
 from .rdb import Facts
 from .retroarch import RetroArch
 
@@ -91,6 +92,10 @@ class Library:
         user = read_json(self.user_file, {})
         esde_home = user.get("esde_home", self.defaults.get("esde_home", "~/ES-DE"))
         self.esde = EsDe(home, esde_home, os.path.join(runtime_dir, "esde"), os.path.join(plugin_dir, "esde"), log)
+        self.esde.chosen = self.roots
+        self.libraries = Libraries(home, self.esde)
+        # The last result of copies(), with the folders and times it read.
+        self.copies_of = (None, set())
         self.facts_db = Facts(home, log)
         self.decoded = info.Files(os.path.join(runtime_dir, "files.json"), home, log)
         self.arcade = arcade.Arcade(os.path.join(plugin_dir, "facts", "fbneo.json"),
@@ -412,11 +417,14 @@ class Library:
         system = system or self.systems()[sid]
         meta = self.metadata(system)
         titles = self.titles_for(system)
+        main = self.esde.rom_dir()
+        copies = self.copies() if any(not r.startswith(main) for r in system["roots"]) else set()
         found = []
         for path in self.scan(system):
             m = meta.get(path, {})
-            # A hidden game stays listed while it has a tile, so the tile can go.
-            if m.get("hidden") and path not in self.tiles:
+            # A hidden game or another folder's copy stays listed while it has a tile: the user can then
+            # remove the tile.
+            if (m.get("hidden") or path in copies) and path not in self.tiles:
                 continue
             g = self.entry(system, path, m, titles)
             if g:
@@ -475,6 +483,87 @@ class Library:
                 os.remove(p)
         if self.choices.pop(path, None) is not None:
             write_json(self.choices_file, self.choices)
+
+    def copies(self):
+        """Return the game files whose name and size match a file in an earlier ROM folder. The main
+        folder comes first. The walk skips the links into another ROM folder: that folder lists their
+        files. The files are read again when a folder's time changes."""
+        roots = [r.rstrip("/") for r in self.esde.rom_dirs()]
+        if len(roots) < 2:
+            return set()
+        reals = [os.path.realpath(r) for r in roots]
+        folders, seen = [], set()
+        for i, root in enumerate(roots):
+            todo = [root]
+            while todo:
+                folder = todo.pop()
+                real = os.path.realpath(folder)
+                elsewhere = any(j != i and (real + "/").startswith(r + "/") for j, r in enumerate(reals))
+                if real in seen or folder != root and elsewhere:
+                    continue
+                seen.add(real)
+                try:
+                    entries = list(os.scandir(folder))
+                    folders.append((i, folder, os.stat(folder).st_mtime_ns))
+                except OSError:
+                    continue
+                todo += [e.path for e in entries if e.is_dir()]
+        if self.copies_of[0] == folders:
+            return self.copies_of[1]
+        first, out = {}, set()
+        for i, folder, _ in folders:
+            try:
+                for e in os.scandir(folder):
+                    if e.is_file():
+                        key = (e.name, e.stat().st_size)
+                        if first.setdefault(key, i) < i:
+                            out.add(e.path)
+            except OSError:
+                pass
+        self.copies_of = (folders, out)
+        return out
+
+    # ROM folders
+
+    def roots(self):
+        """Return the ROM folders the user chose, the main one first, else None."""
+        try:
+            return (self.esde.parsed.get(self.settings_file, json.loads) or {}).get("roots") or None
+        except ValueError as e:
+            self.log.warning(f"{self.settings_file}: {e}")
+            return None
+
+    def set_roots(self, roots):
+        settings = self.settings()
+        settings["roots"] = list(dict.fromkeys(roots))
+        write_json(self.settings_file, settings)
+
+    def find_libraries(self):
+        return self.libraries.find()
+
+    def new_libraries(self):
+        return self.libraries.new_places()
+
+    def use_library(self, path):
+        """Read the games of one folder, and point ES-DE at it."""
+        self.set_roots([path])
+        self.esde.set_setting("ROMDirectory", path)
+
+    def combine_libraries(self, main, include):
+        """Read the games of the main folder and of the included ones, and point ES-DE at the main one.
+        Add a link in the main folder to each included system it lacks: ES-DE and the other front-ends
+        then see every system."""
+        self.set_roots([main, *include])
+        for link in self.libraries.link(main, [p for p in include if p != main]):
+            self.log.info(f"linked {link} to {os.readlink(link)}")
+        self.esde.set_setting("ROMDirectory", main)
+
+    def create_library(self, path, include):
+        """Make a library with a folder per system, then combine the included folders into it."""
+        self.set_roots([path, *include])
+        for link in self.libraries.create(path, [p for p in include if p != path]):
+            self.log.info(f"linked {link} to {os.readlink(link)}")
+        self.esde.set_setting("ROMDirectory", path)
 
     # Steam shortcuts
 

@@ -266,6 +266,9 @@ class EsDe:
         self.copy_dir = copy_dir
         self.log = log
         self.parsed = Parsed()
+        # Returns the ROM folders the user chose, the main one first, else None. Library reads them
+        # from settings.json.
+        self.chosen = lambda: None
 
     def expand(self, path):
         return self.home + path[1:] if path.startswith("~") else path
@@ -278,9 +281,30 @@ class EsDe:
     def setting(self, name, default=""):
         return self.settings().get(name, default)
 
+    def set_setting(self, name, value):
+        """Write a string setting in es_settings.xml. A missing file means ES-DE never ran: ES-DE then
+        asks for the ROM directory at its first start. ES-DE writes its settings at exit and loses a
+        change made while it runs."""
+        path = os.path.join(self.esde_home, "settings", "es_settings.xml")
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except FileNotFoundError:
+            return
+        line = f'<string name="{name}" value="{html.escape(value)}" />'
+        text, n = re.subn(rf'<string name="{re.escape(name)}" value="[^"]*"\s*/>', lambda _: line, text, count=1)
+        if not n:
+            text = text.rstrip("\n") + "\n" + line + "\n"
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(path + ".tmp", path)
+
     def rom_dir(self):
-        """Return the ROM directory with a trailing slash: ES-DE's setting, as getROMDirectory()
-        reads it, else the first of ROM_DIRS found."""
+        """Return the ROM directory with a trailing slash: the main folder the user chose, else ES-DE's
+        setting, as getROMDirectory() reads it, else the first of ROM_DIRS found."""
+        chosen = self.chosen()
+        if chosen:
+            return chosen[0].rstrip("/") + "/"
         value = self.setting("ROMDirectory")
         if not value:
             dirs = [self.expand(d) for d in ROM_DIRS]
@@ -289,16 +313,21 @@ class EsDe:
         return value if value.endswith("/") else value + "/"
 
     def rom_dirs(self):
-        """Return every ROM directory with a trailing slash: rom_dir() first, then the ROM folder of
-        each mounted card. A folder that is another one's symlink, as EmuDeck makes of ~/Emulation
-        when it keeps the games on the card, counts once."""
+        """Return every ROM directory with a trailing slash: the folders the user chose, else rom_dir()
+        and the ROM folder of each mounted card. EmuDeck links ~/Emulation to the card when it keeps
+        the games there: a folder reached twice counts once."""
         found, real = [self.rom_dir()], set()
         real.add(os.path.realpath(found[0]))
-        for pattern in CARD_ROM_DIRS:
+        chosen = self.chosen()
+        for pattern in [] if chosen else CARD_ROM_DIRS:
             for folder in sorted(glob.glob(pattern)):
                 if os.path.isdir(folder) and os.path.realpath(folder) not in real:
                     real.add(os.path.realpath(folder))
                     found.append(folder + "/")
+        for folder in (chosen or [])[1:]:
+            if os.path.realpath(folder) not in real:
+                real.add(os.path.realpath(folder))
+                found.append(folder.rstrip("/") + "/")
         return found
 
     def media_dir(self):
@@ -384,15 +413,18 @@ class EsDe:
 
     def system_dirs(self, system):
         """Return the folders of a system's games, one in each ROM directory that has it, or the
-        first ROM directory's when none does."""
+        first ROM directory's when none does. A link to another ROM directory's folder takes that
+        folder's path, at the link's place in the list. The games of a combined system keep their
+        paths."""
         dirs = [os.path.normpath(self.expand(system["path"].replace("%ROMPATH%", root).replace("//", "/")))
                 for root in self.rom_dirs()]
-        found, real = [], set()
+        found = {}
         for folder in dirs:
-            if os.path.isdir(folder) and os.path.realpath(folder) not in real:
-                real.add(os.path.realpath(folder))
-                found.append(folder)
-        return found or dirs[:1]
+            if os.path.isdir(folder):
+                real = os.path.realpath(folder)
+                if real not in found or os.path.islink(found[real]) and not os.path.islink(folder):
+                    found[real] = folder
+        return list(found.values()) or dirs[:1]
 
     def system_dir(self, system):
         """Return the first folder of a system's games."""
@@ -445,9 +477,10 @@ class EsDe:
 
     # Games
 
-    def scan(self, system):
-        """Return the game paths of a system the way ES-DE's populateFolder() finds them."""
-        roots = [r for r in self.system_dirs(system)
+    def scan(self, system, folders=None):
+        """Return the game paths in a system's folders, or in the folders given, as ES-DE's
+        populateFolder() finds them."""
+        roots = [r for r in (self.system_dirs(system) if folders is None else folders)
                  if os.path.isdir(r) and not os.path.exists(os.path.join(r, "noload.txt"))]
         extensions = set(system["extensions"])
         show_hidden = self.setting("ShowHiddenFiles", "true") == "true"

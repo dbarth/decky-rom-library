@@ -149,12 +149,31 @@ class Plugin:
     async def set_emulator_setting(self, system, path, key, value):
         await asyncio.to_thread(library.set_emulator_setting, system, path, key, value)
 
-    # Returns what the panel's buttons need: the Downloads folder, and whether Loadout is installed.
+    # Returns what the panel's buttons need: the Downloads folder, whether Loadout is installed, and the
+    # ROM folders the user chose. 'roots' is None until the user chooses.
     async def places(self):
         return {
             "downloads": os.path.join(decky.DECKY_USER_HOME, "Downloads"),
             "loadout": os.path.isfile(os.path.join(decky.DECKY_HOME, "plugins", "loadout", "plugin.json")),
+            "roots": await asyncio.to_thread(library.roots),
         }
+
+    # Returns the ROM folders the scan finds, as Library in tiles.ts.
+    async def find_libraries(self):
+        return await asyncio.to_thread(library.find_libraries)
+
+    # Returns where a new library can go, the internal storage first.
+    async def new_libraries(self):
+        return await asyncio.to_thread(library.new_libraries)
+
+    async def use_library(self, path):
+        await asyncio.to_thread(library.use_library, path)
+
+    async def create_library(self, path, include):
+        await asyncio.to_thread(library.create_library, path, include)
+
+    async def combine_libraries(self, main, include):
+        await asyncio.to_thread(library.combine_libraries, main, include)
 
     async def get_launcher(self):
         return await asyncio.to_thread(library.launcher)
