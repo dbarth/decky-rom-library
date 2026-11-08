@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import shutil
 import struct
 import sys
 import unittest
@@ -69,6 +70,22 @@ class LibraryTest(unittest.TestCase):
         # Eden reads the updates beside the games, and ES-DE skips them.
         self.assertIn(f"Paths\\external_content_dirs\\1\\path={self.h.rom('switch/updates')}\n", text)
         self.assertTrue(os.path.exists(self.h.rom("switch/updates/noload.txt")))
+
+    def test_vulkan_driver(self):
+        rom = self.h.rom(f"switch/{TUNIC}")
+        folder = os.path.join(self.h.home, ".local/share/vulkan-drivers/mesa-26.3")
+        os.makedirs(os.path.join(folder, "drirc.d"))
+        with open(os.path.join(folder, "icd.json"), "w") as f:
+            f.write("{}")
+        self.assertEqual(self.lib.vulkan_driver(rom), {"drivers": ["mesa-26.3"], "driver": None})
+        self.lib.set_vulkan_driver(rom, "mesa-26.3")
+        self.assertEqual(self.make().vulkan_driver(rom)["driver"], "mesa-26.3")
+        self.assertEqual(self.lib.shortcut("switch", rom)["launch_options"],
+                         f"REUSE_CHECK_DELAY=0 VK_DRIVER_FILES={folder}/icd.json DRIRC_CONFIGDIR={folder}/drirc.d "
+                         "%command% -f -g " + esde.escape(rom))
+        shutil.rmtree(folder)
+        self.assertEqual(self.lib.shortcut("switch", rom)["launch_options"],
+                         "REUSE_CHECK_DELAY=0 %command% -f -g " + esde.escape(rom))
 
     def test_game_running(self):
         class Steam:

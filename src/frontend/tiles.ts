@@ -71,6 +71,11 @@ export interface RomFiles {
   size: number;
 }
 
+export interface VulkanDriver {
+  drivers: string[];
+  driver: string | null;
+}
+
 export type AppKind = "emulator" | "frontend" | "other";
 
 // What the plugin knows of a Steam app: its tile, or its kind of app.
@@ -209,6 +214,8 @@ export const createLibrary = callable<[path: string, include: string[]], void>("
 // Reads the main library and the included ones, and links the included systems the main one lacks.
 export const combineLibraries = callable<[main: string, include: string[]], void>("combine_libraries");
 export const gameRunning = callable<[], boolean>("game_running");
+export const getVulkanDriver = callable<[path: string], VulkanDriver>("vulkan_driver");
+export const setVulkanDriver = callable<[path: string, name: string | null], void>("set_vulkan_driver");
 export const getEmulatorSettings = callable<[system: string, path: string], EmulatorSettings | null>(
   "emulator_settings");
 export const setEmulatorSetting = callable<[system: string, path: string, key: string, value: string | null], void>(

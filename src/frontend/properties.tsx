@@ -2,11 +2,11 @@ import {
   DialogButton, DropdownItem, Field, SidebarNavigation, SteamSpinner, ToggleField, gamepadDialogClasses,
 } from "@decky/ui";
 import { ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useEmulatorSettings, useRomFiles } from "./hooks";
+import { useEmulatorSettings, useRomFiles, useVulkanDriver } from "./hooks";
 import { KINDS, Page, Spinner, confirmUninstall, customize, formatSize } from "./page";
 import { KIND_LABEL, findGame, loadGames, toggleTile, useStore } from "./store";
 import { PANEL_CSS } from "./styles";
-import { EmulatorSettings, Game } from "./tiles";
+import { APPS, EmulatorSettings, Game } from "./tiles";
 
 // Matches no option: Steam's dropdown then shows strDefaultLabel on its button.
 const NO_OPTION = {};
@@ -100,7 +100,7 @@ const WIIMOTE_HELP: Record<string, string> = {
 
 
 // A GameCube disc has no Controller page.
-function dolphinPages(emulator: Emulator): PropertyPage[] {
+function dolphinPages(emulator: Emulator, driver: ReactNode): PropertyPage[] {
   const [settings] = emulator;
   const layout = settings ? settings.values.wiimote ?? settings.globals.wiimote : "";
   return [{
@@ -109,6 +109,7 @@ function dolphinPages(emulator: Emulator): PropertyPage[] {
         <Setting label="Aspect ratio" name="aspect" options={DOLPHIN.aspect} emulator={emulator} />
         <Setting label="Resolution" name="resolution" options={DOLPHIN.resolution} emulator={emulator} />
         <Setting label="Renderer" name="backend" options={DOLPHIN.backend} emulator={emulator} />
+        {driver}
       </>
     ),
   }, ...settings?.console === "gc" ? [] : [{
@@ -122,7 +123,7 @@ function dolphinPages(emulator: Emulator): PropertyPage[] {
   }]];
 }
 
-function edenPages(emulator: Emulator): SystemPages {
+function edenPages(emulator: Emulator, driver: ReactNode): SystemPages {
   return {
     language: (
       <>
@@ -136,6 +137,7 @@ function edenPages(emulator: Emulator): SystemPages {
           <Setting label="Console mode" name="docked" options={EDEN.docked} emulator={emulator} />
           <Setting label="Resolution" name="resolution" options={EDEN.resolution} emulator={emulator} />
           <Setting label="Scaling filter" name="filter" options={EDEN.filter} emulator={emulator} />
+          {driver}
           <div className="rt-prop-heading">Advanced settings</div>
           <Setting label="GPU accuracy" name="accuracy" options={EDEN.accuracy} emulator={emulator} />
           <Setting label="Asynchronous GPU" name="async_gpu" options={ON_OFF} emulator={emulator} />
@@ -164,11 +166,15 @@ function SwapButtons({ emulator: [settings, set] }: { emulator: Emulator }) {
   );
 }
 
-// A game without a bezel has no Display page.
-function retroarchPages(emulator: Emulator): PropertyPage[] {
-  return [...emulator[0]?.overlay ? [{
+// A game with neither a bezel nor a Vulkan driver to pick has no Display page.
+function retroarchPages(emulator: Emulator, driver: ReactNode): PropertyPage[] {
+  const overlay = emulator[0]?.overlay;
+  return [...overlay || driver ? [{
     title: "Display", identifier: "display", content: (
-      <Setting label="Show bezel" name="bezel" options={ON_OFF} emulator={emulator} />
+      <>
+        {overlay && <Setting label="Show bezel" name="bezel" options={ON_OFF} emulator={emulator} />}
+        {driver}
+      </>
     ),
   }] : [], {
     title: "RetroArch", identifier: "emulator", content: (
@@ -193,12 +199,13 @@ interface SystemPages {
   pages: PropertyPage[];
 }
 
-// The pages of the emulators whose settings the plugin writes: Dolphin, Eden and RetroArch.
-function systemPages([settings, set]: Emulator): SystemPages {
-  if (settings?.emulator === "Dolphin") return { pages: dolphinPages([settings, set]) };
-  if (settings?.emulator === "Eden") return edenPages([settings, set]);
-  if (settings?.emulator === "RetroArch") return { pages: retroarchPages([settings, set]) };
-  return { pages: [] };
+// The pages of the emulators whose settings the plugin writes: Dolphin, Eden and RetroArch. Any other
+// emulator gets a Display page for the Vulkan driver row alone.
+function systemPages([settings, set]: Emulator, driver: ReactNode): SystemPages {
+  if (settings?.emulator === "Dolphin") return { pages: dolphinPages([settings, set], driver) };
+  if (settings?.emulator === "Eden") return edenPages([settings, set], driver);
+  if (settings?.emulator === "RetroArch") return { pages: retroarchPages([settings, set], driver) };
+  return { pages: driver ? [{ title: "Display", identifier: "display", content: driver }] : [] };
 }
 
 // The tile's toggle. While Steam adds or removes the tile, the toggle shows the asked state and a
@@ -237,7 +244,13 @@ function Properties({ system, game }: { system: string; game: Game }) {
   const sys = s.systems?.find((x) => x.id === system);
   const where = sys?.name ?? system;
   const shown = files?.files.slice(0, 8) ?? [];
-  const added = systemPages(settings);
+  const [vulkan, setVulkanDriver] = useVulkanDriver(game);
+  // The row shows once a Vulkan driver is installed beside the system's.
+  const driver = system !== APPS && !!vulkan?.drivers.length && (
+    <SettingDropdown label="Vulkan driver" options={vulkan.drivers.map((d) => [d, d])} byDefault="System"
+      value={vulkan.driver} onChange={setVulkanDriver} />
+  );
+  const added = systemPages(settings, driver);
   const pages: PropertyPage[] = [
     {
       title: "General", identifier: "general", content: (

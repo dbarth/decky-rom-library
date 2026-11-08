@@ -84,6 +84,8 @@ class Library:
         self.tiles_file = os.path.join(settings_dir, "tiles.json")
         self.choices_file = os.path.join(settings_dir, "art.json")
         self.settings_file = os.path.join(settings_dir, "settings.json")
+        self.drivers_dir = os.path.join(home, ".local", "share", "vulkan-drivers")
+        self.drivers_file = os.path.join(settings_dir, "drivers.json")
         # Each app shortcut by app id: its name, its kind, whether it got artwork once and its id in the hub.
         self.apps_file = os.path.join(settings_dir, "apps.json")
         self.hub = HUB
@@ -110,6 +112,8 @@ class Library:
                       for path, rec in read_json(self.tiles_file, {}).items()}
         # The image the user picked for each kind of a game's art, by ROM path.
         self.choices = read_json(self.choices_file, {})
+        # The Vulkan driver the user picked for a game, by ROM path.
+        self.drivers = read_json(self.drivers_file, {})
 
     def expand(self, path):
         return self.home + path[1:] if path.startswith("~") else path
@@ -483,6 +487,8 @@ class Library:
                 os.remove(p)
         if self.choices.pop(path, None) is not None:
             write_json(self.choices_file, self.choices)
+        if self.drivers.pop(path, None) is not None:
+            write_json(self.drivers_file, self.drivers)
 
     def copies(self):
         """Return the game files whose name and size match a file in an earlier ROM folder. The main
@@ -597,11 +603,14 @@ class Library:
             self.tiles[new] = {**self.tiles.pop(path), "system": sid}
             if path in self.choices:
                 self.choices[new] = self.choices.pop(path)
+            if path in self.drivers:
+                self.drivers[new] = self.drivers.pop(path)
             self.log.info(f"tile {tile['appid']}: {path} -> {new}")
             moved += 1
         if moved:
             self.save_tiles()
             write_json(self.choices_file, self.choices)
+            write_json(self.drivers_file, self.drivers)
         return moved
 
     # Steam shortcuts
@@ -626,7 +635,7 @@ class Library:
         # Environment assignments go first, ahead of Armada's wrapper. Steam puts the words before
         # %command% ahead of its own launch wrapper, as on the SteamOS ARM port.
         prefix_words = words(prefix)
-        env = [UNMOUNT_AT_EXIT]
+        env = [UNMOUNT_AT_EXIT, *self.driver_env(game["path"])]
         while prefix_words and ENV_ASSIGNMENT.match(prefix_words[0]):
             env.append(prefix_words.pop(0))
         wrapper = [WRAPPER] if os.path.exists(WRAPPER) else []
@@ -636,6 +645,36 @@ class Library:
             "start_dir": start or os.path.dirname(exe) + "/",
             "launch_options": " ".join(p for p in parts if p),
         }
+
+    # Vulkan drivers installed beside the system's: each folder holds an icd.json and a drirc.d.
+
+    def installed_drivers(self):
+        try:
+            entries = os.listdir(self.drivers_dir)
+        except OSError:
+            return []
+        return sorted(n for n in entries if os.path.isfile(os.path.join(self.drivers_dir, n, "icd.json")))
+
+    def vulkan_driver(self, path):
+        return {"drivers": self.installed_drivers(), "driver": self.drivers.get(path)}
+
+    def set_vulkan_driver(self, path, name):
+        if name is None:
+            self.drivers.pop(path, None)
+        else:
+            self.drivers[path] = name
+        write_json(self.drivers_file, self.drivers)
+
+    def driver_env(self, path):
+        """Return the assignments that start a game on its driver. A removed driver leaves the system's."""
+        name = self.drivers.get(path)
+        if name not in self.installed_drivers():
+            return []
+        folder = os.path.join(self.drivers_dir, name)
+        env = ["VK_DRIVER_FILES=" + quote(os.path.join(folder, "icd.json"))]
+        if os.path.isdir(os.path.join(folder, "drirc.d")):
+            env.append("DRIRC_CONFIGDIR=" + quote(os.path.join(folder, "drirc.d")))
+        return env
 
     def shortcut(self, sid, path):
         """Return the fields of a game's Steam shortcut, for a new tile or the hidden launcher. The

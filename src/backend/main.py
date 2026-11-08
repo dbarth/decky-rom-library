@@ -140,6 +140,12 @@ class Plugin:
     async def game_running(self):
         return await asyncio.to_thread(library.game_running, Processes())
 
+    async def vulkan_driver(self, path):
+        return await asyncio.to_thread(library.vulkan_driver, path)
+
+    async def set_vulkan_driver(self, path, name):
+        await asyncio.to_thread(library.set_vulkan_driver, path, name)
+
     # Moves a game from another folder, such as Downloads, into its system's folder.
     async def import_game(self, system, path):
         return await asyncio.to_thread(library.import_game, system, path)

@@ -2,8 +2,8 @@ import { toaster } from "@decky/api";
 import { useEffect, useState } from "react";
 import { useStore } from "./store";
 import {
-  APPS, EmulatorSettings, Game, Info, Kind, RomFiles, getArtwork, getEmulatorSettings, getImage, getInfo,
-  getPlaytime, getPreview, getRomFiles, setEmulatorSetting,
+  APPS, EmulatorSettings, Game, Info, Kind, RomFiles, VulkanDriver, getArtwork, getEmulatorSettings, getImage, getInfo,
+  getPlaytime, getPreview, getRomFiles, getVulkanDriver, setEmulatorSetting, setVulkanDriver, syncTiles,
 } from "./tiles";
 
 // Data URLs of local images, by id.
@@ -135,6 +135,27 @@ export function useEmulatorSettings(system: string, game: Game):
     put(value);
     setEmulatorSetting(system, game.path, key, value).catch((e) => {
       put(old);
+      toaster.toast({ title: "ROM Library", body: `${game.name}: ${e}` });
+    });
+  };
+  return [got, set];
+}
+
+// The game's Vulkan driver. A change reaches its tile at once: Steam's Play runs the tile as it stands.
+export function useVulkanDriver(game: Game): [VulkanDriver | null, (name: string | null) => void] {
+  const [got, setGot] = useState<VulkanDriver | null>(null);
+  useEffect(() => {
+    let live = true;
+    getVulkanDriver(game.path).then((d) => live && setGot(d), () => live && setGot(null));
+    return () => {
+      live = false;
+    };
+  }, [game.path]);
+  const set = (name: string | null) => {
+    const old = got?.driver ?? null;
+    setGot((d) => d && { ...d, driver: name });
+    setVulkanDriver(game.path, name).then(syncTiles).catch((e) => {
+      setGot((d) => d && { ...d, driver: old });
       toaster.toast({ title: "ROM Library", body: `${game.name}: ${e}` });
     });
   };
