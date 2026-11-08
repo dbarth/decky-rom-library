@@ -8,7 +8,7 @@ import subprocess
 import time
 
 from . import arcade, info, names, wii
-from .apps import EMULATOR, FRONTEND, classify
+from .apps import EMULATOR, FRONTEND, android_package, classify
 from . import dsu
 from .dolphin import Dolphin
 from .eden import Eden
@@ -741,7 +741,8 @@ class Library:
             kind = classify(shortcut, binaries, flatpaks, frontend)
             had_art = known.get(str(appid), {}).get("art", False) or bool(shortcut.get("art"))
             apps[str(appid)] = {"name": shortcut["name"], "kind": kind, "art": had_art,
-                                "hub": self.hub_app(shortcut.get("exe") or "")}
+                                "hub": self.hub_app(shortcut.get("exe") or ""),
+                                "icon": self.android_icon(shortcut)}
             out.append({
                 "appid": appid,
                 "name": shortcut["name"],
@@ -750,6 +751,12 @@ class Library:
             })
         write_json(self.apps_file, apps)
         return {"apps": out}
+
+    def android_icon(self, shortcut):
+        """Return the icon Konkr saved for an Android app's shortcut, when the file exists."""
+        package = android_package(unquote(shortcut.get("exe") or ""), shortcut.get("launch_options") or "")
+        path = os.path.join(self.home, "Android", ".android", "icons", f"{package}.png")
+        return path if package and os.path.isfile(path) else None
 
     def app_art_done(self, appid):
         apps = read_json(self.apps_file, {})
@@ -825,10 +832,11 @@ class Library:
         if not app:
             raise KeyError(path)
         name = app["name"]
-        # SteamGridDB names emulators and programs with a suffix.
-        names = ([f"{name} (Emulator)"] if app["kind"] == EMULATOR else []) + [f"{name} (Program)", name]
-        return {"stem": "", "title": name, "name": name, "art": ["sgdb"], "libretro": None,
-                "esde_media": None, "sgdb_names": names}
+        # SteamGridDB names emulators, programs and websites with a suffix.
+        names = [f"{name} (Emulator)"] if app["kind"] == EMULATOR else []
+        names += [f"{name} (Program)", f"{name} (Website)", name]
+        return {"stem": "", "title": name, "name": name, "art": ["sgdb", "icon"], "libretro": None,
+                "esde_media": None, "sgdb_names": names, "icon": app.get("icon")}
 
     # Artwork
 

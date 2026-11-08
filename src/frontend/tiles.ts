@@ -289,6 +289,9 @@ function frame(image: HTMLImageElement, w: number, h: number): string {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
+  // Android icons can be transparent.
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, w, h);
   const cover = Math.max(w / image.width, h / image.height) * 1.1;
   ctx.filter = "blur(24px) brightness(0.55)";
   ctx.drawImage(image, (w - image.width * cover) / 2, (h - image.height * cover) / 2,

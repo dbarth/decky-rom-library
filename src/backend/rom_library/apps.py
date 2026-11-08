@@ -21,6 +21,12 @@ def launch_words(options):
     return out
 
 
+def android_package(exe, options):
+    """Return the package a Konkr shortcut opens with "konkr-apk run PACKAGE", else None."""
+    args = launch_words(options)
+    return args[1] if os.path.basename(exe) == "konkr-apk" and len(args) == 2 and args[0] == "run" else None
+
+
 def flatpak_app(exe, options):
     """Return the Flatpak id a "flatpak run" shortcut starts, and the words that follow it."""
     if os.path.basename(exe) != "flatpak":

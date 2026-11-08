@@ -9,7 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "backend"))
 sys.path.insert(0, HERE)
 
-from rom_library import apps, library  # noqa: E402
+from rom_library import apps, art, library  # noqa: E402
 from test_esde import ARM_FILES, Home, touch  # noqa: E402
 
 DEFAULTS = os.path.join(HERE, "..", "backend", "defaults")
@@ -102,11 +102,28 @@ class PlanTest(unittest.TestCase):
         self.lib.app_art_done(1)
         self.assertFalse(self.lib.apps_plan(self.shortcuts)["apps"][0]["art"])
         media = self.lib.media(library.APPS, "app:1")
-        self.assertEqual(media["sgdb_names"], ["RetroArch (Emulator)", "RetroArch (Program)", "RetroArch"])
+        self.assertEqual(media["sgdb_names"],
+                         ["RetroArch (Emulator)", "RetroArch (Program)", "RetroArch (Website)", "RetroArch"])
         # Other apps, such as a store, stay out of the list.
         self.assertEqual([a["name"] for a in self.lib.app_list()], ["RetroArch"])
         with open(os.path.join(self.settings, "apps.json")) as f:
             self.assertEqual(json.load(f)["2"]["kind"], "other")
+
+    def test_android_app_falls_back_on_its_icon(self):
+        icon = os.path.join(self.h.home, "Android", ".android", "icons", "com.example.game.png")
+        touch(icon)
+        self.lib.apps_plan([
+            {"appid": 3, "name": "Game", "exe": '"/usr/bin/konkr-apk"',
+             "launch_options": '"run" "com.example.game"', "art": False},
+            {"appid": 4, "name": "Other", "exe": '"/usr/bin/konkr-apk"',
+             "launch_options": '"run" "com.example.missing"', "art": False},
+        ])
+        artwork = art.Artwork(self.settings, logging.getLogger())
+        artwork.sgdb_assets = lambda *args, **kwargs: []
+        media = self.lib.media(library.APPS, "app:3")
+        self.assertEqual(artwork.default(media, "portrait"), "file:" + icon)
+        self.assertIsNone(artwork.default(media, "hero"))
+        self.assertIsNone(artwork.default(self.lib.media(library.APPS, "app:4"), "portrait"))
 
 
 # Answers as hub.py does: remove starts a job, jobs lists it in HUB_STATE, steam-gone succeeds.

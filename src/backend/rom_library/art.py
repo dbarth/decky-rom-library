@@ -1,4 +1,4 @@
-"""Tile artwork from ES-DE's scraped media, the libretro thumbnails or SteamGridDB."""
+"""Tile artwork from ES-DE's scraped media, the libretro thumbnails, SteamGridDB or an app's icon."""
 import base64
 import hashlib
 import json
@@ -97,6 +97,10 @@ class Artwork:
         if kind == "icon":
             assets.sort(key=lambda a: (a["width"] < 128, a["style"] != "official"))
         return assets[0]["url"] if assets else None
+
+    def default_icon(self, media, kind):
+        # The other kinds fall back on the portrait, framed to their own shape.
+        return "file:" + media["icon"] if kind == "portrait" and media.get("icon") else None
 
     def candidates(self, media, kind):
         """List every image on offer for one kind: [{id, thumb, label, source, size}]."""
