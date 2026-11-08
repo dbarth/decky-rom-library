@@ -208,6 +208,7 @@ export const getNewLibraries = callable<[], NewLibrary[]>("new_libraries");
 export const createLibrary = callable<[path: string, include: string[]], void>("create_library");
 // Reads the main library and the included ones, and links the included systems the main one lacks.
 export const combineLibraries = callable<[main: string, include: string[]], void>("combine_libraries");
+export const gameRunning = callable<[], boolean>("game_running");
 export const getEmulatorSettings = callable<[system: string, path: string], EmulatorSettings | null>(
   "emulator_settings");
 export const setEmulatorSetting = callable<[system: string, path: string, key: string, value: string | null], void>(

@@ -70,6 +70,24 @@ class LibraryTest(unittest.TestCase):
         self.assertIn(f"Paths\\external_content_dirs\\1\\path={self.h.rom('switch/updates')}\n", text)
         self.assertTrue(os.path.exists(self.h.rom("switch/updates/noload.txt")))
 
+    def test_game_running(self):
+        class Steam:
+            def __init__(self, running):
+                self.running = running
+
+            def table(self):
+                return {}
+
+            def reaper(self, table, appid):
+                return 1 if appid == self.running else None
+
+        rom = self.h.rom(f"switch/{TUNIC}")
+        self.lib.record(rom, 7, "switch", self.lib.shortcut("switch", rom))
+        self.lib.set_launcher(9)
+        self.assertTrue(self.lib.game_running(Steam(7)))
+        self.assertTrue(self.lib.game_running(Steam(9)))
+        self.assertFalse(self.lib.game_running(Steam(8)))
+
     def test_wrapper_keeps_command(self):
         library.WRAPPER = os.path.join(self.h.bin, "bash")
         rom = self.h.rom(f"switch/{TUNIC}")

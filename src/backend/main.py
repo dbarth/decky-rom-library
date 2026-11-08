@@ -137,6 +137,9 @@ class Plugin:
         decky.logger.info(f"quit game {appid}: {how}")
         return how
 
+    async def game_running(self):
+        return await asyncio.to_thread(library.game_running, Processes())
+
     # Moves a game from another folder, such as Downloads, into its system's folder.
     async def import_game(self, system, path):
         return await asyncio.to_thread(library.import_game, system, path)

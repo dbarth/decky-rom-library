@@ -716,6 +716,12 @@ class Library:
     def launcher(self):
         return self.settings().get("launcher")
 
+    def game_running(self, processes):
+        """Return whether Steam runs a tile or the hidden launcher."""
+        table = processes.table()
+        ours = [t["appid"] for t in self.tiles.values()] + [self.launcher()]
+        return any(processes.reaper(table, appid) is not None for appid in ours if appid is not None)
+
     def set_launcher(self, appid):
         settings = self.settings()
         settings["launcher"] = int(appid)

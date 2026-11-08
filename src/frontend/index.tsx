@@ -4,6 +4,7 @@ import { LIBRARIES_ROUTE, LibrariesPage } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, GamePage, GamesPage, PROPERTIES_ROUTE } from "./page";
 import { Panel } from "./panel";
 import { PropertiesPage } from "./properties";
+import { guardStarts } from "./store";
 
 function Icon() {
   return (
@@ -21,6 +22,7 @@ export default definePlugin(() => {
   routerHook.addRoute(GAME_ROUTE, GamePage, { exact: true });
   routerHook.addRoute(PROPERTIES_ROUTE, PropertiesPage, { exact: true });
   routerHook.addRoute(LIBRARIES_ROUTE, LibrariesPage, { exact: true });
+  const stopGuard = guardStarts();
   return {
     name: "ROM Library",
     // Decky puts the title in a row of the same class, beside its back button. 3px of padding, down from
@@ -29,6 +31,7 @@ export default definePlugin(() => {
     content: <Panel />,
     icon: <Icon />,
     onDismount() {
+      stopGuard();
       routerHook.removeRoute(GAMES_ROUTE);
       routerHook.removeRoute(GAME_ROUTE);
       routerHook.removeRoute(PROPERTIES_ROUTE);

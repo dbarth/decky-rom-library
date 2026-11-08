@@ -3,8 +3,9 @@ import type { FileSelectionType } from "@decky/api";
 import { Router } from "@decky/ui";
 import { useEffect, useReducer } from "react";
 import {
-  APPS, Game, Kind, System, addTile, applyImage, gamesStamp, importGame, listGames, listSystems, playGame, pruneGames,
-  quitGame, removeTile, setHidden, syncApps, syncTiles, terminateApp, tileExists, uninstallApp, uninstallRom,
+  APPS, Game, Kind, System, addTile, applyImage, describeApp, gameRunning, gamesStamp, importGame, listGames,
+  listSystems, playGame, pruneGames, quitGame, removeTile, setHidden, syncApps, syncTiles, terminateApp, tileExists,
+  uninstallApp, uninstallRom,
 } from "./tiles";
 
 // FileSelectionType.FILE: a const enum, which vite does not inline.
@@ -280,10 +281,50 @@ export function uninstallEmulator(app: Game): Promise<boolean> {
     .finally(() => setBusy(app.path, null));
 }
 
+// Steam's log shows BotW starting 3 times in 8 s on 22 October 2026: a start waits for the last one.
+const START_LOCK_MS = 20000;
+let startedAt = 0;
+const ALREADY_RUNNING = "A game is already running";
+
+const starting = () => Date.now() - startedAt < START_LOCK_MS;
+
+// Cancels the start of a game of ours while one runs or starts, for ROM Library's Play and Steam's.
+// Returns the function that stops it. decky-vite has no game actions.
+export function guardStarts(): () => void {
+  const apps = SteamClient.Apps as any;
+  const sessions = SteamClient.GameSessions as any;
+  const starts = apps.RegisterForGameActionStart?.(async (action: number, gameid: string, verb: string) => {
+    if (verb !== "LaunchApp") return;
+    // A shortcut's game id holds its app id in the upper 32 bits.
+    const id = BigInt(gameid);
+    const info = await describeApp(Number(id > 0xffffffffn ? id >> 32n : id)).catch(() => null);
+    if (!info || !("tile" in info || info.kind === "launcher")) return;
+    // No await between the test and the set: of two starts, the first one passes.
+    const locked = starting();
+    if (!locked) startedAt = Date.now();
+    if (locked || await gameRunning().catch(() => false)) {
+      apps.CancelGameAction(action);
+      toast(ALREADY_RUNNING);
+      if (!locked) startedAt = 0;
+    }
+  });
+  const ends = sessions?.RegisterForAppLifetimeNotifications?.((n: { bRunning: boolean }) => {
+    if (!n.bRunning) startedAt = 0;
+  });
+  return () => {
+    starts?.unregister();
+    ends?.unregister();
+  };
+}
+
 export function play(system: string, game: Game) {
-  update({ playing: { system, path: game.path } });
   setBusy(game.path, "Starting…");
-  playGame(system, game)
+  (system === APPS ? Promise.resolve(false) : gameRunning().catch(() => false))
+    .then((running) => {
+      if (system !== APPS && (running || starting())) return toast(ALREADY_RUNNING);
+      update({ playing: { system, path: game.path } });
+      return playGame(system, game);
+    })
     .catch((e) => toast(`${game.name}: ${e}`))
     .finally(() => setBusy(game.path, null));
 }
