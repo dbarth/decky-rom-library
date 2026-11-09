@@ -20,15 +20,18 @@ function urlOf(id: string): Promise<string> {
   return local.get(id)!;
 }
 
-export function useImageUrl(id: string | null): string | null {
-  const [url, setUrl] = useState(id && !id.startsWith("file:") ? id : null);
+// Returns undefined while the id or a local file loads, and null when there is no image or the file
+// fails.
+export function useImageUrl(id: string | null | undefined): string | null | undefined {
+  const [url, setUrl] = useState(id?.startsWith("file:") ? undefined : id);
   useEffect(() => {
     if (!id?.startsWith("file:")) {
       setUrl(id);
       return;
     }
     let live = true;
-    urlOf(id).then((u) => live && setUrl(u), () => undefined);
+    setUrl(undefined);
+    urlOf(id).then((u) => live && setUrl(u), () => live && setUrl(null));
     return () => {
       live = false;
     };
@@ -40,12 +43,14 @@ export function useImageUrl(id: string | null): string | null {
 // when its card shows next: SteamGridDB may have failed.
 const previews = new Map<string, Promise<string | null>>();
 
-// Returns the card's image: the title screen, else a preview the backend finds. 'failed' is true once
-// the title screen did not load: libretro has none for a name such as After Burner (VER 1.31).
-export function usePreview(system: string, game: Game, failed = false): string | null {
-  const [id, setId] = useState(game.thumb);
+// Returns the card's image: the title screen, else a preview the backend finds, undefined while it
+// looks. 'failed' is true once the title screen did not load: libretro has none for a name such as
+// After Burner (VER 1.31).
+export function usePreview(system: string, game: Game, failed = false): string | null | undefined {
+  const [id, setId] = useState<string | null | undefined>(game.thumb || undefined);
   useEffect(() => {
     if (game.thumb && !failed) return;
+    setId(undefined);
     if (!previews.has(game.path)) previews.set(game.path, getPreview(system, game.path).catch(() => null));
     let live = true;
     previews.get(game.path)!.then((found) => {

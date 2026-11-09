@@ -22,6 +22,9 @@ export const PANEL_CSS = `
 .rt-rowspin { position: absolute; width: 22px; height: 22px; margin-top: -11px; pointer-events: none; }
 `;
 
+// The round of the light that crosses a frame while its image loads, in seconds.
+export const WAIT_S = 2.4;
+
 // The styles of every page and dialog: the type scale and the colours, then the rules of each page.
 export const CSS = `
 .rt-page, .rt-modal {
@@ -73,6 +76,20 @@ export const CSS = `
 .rt-fit { object-fit: contain; }
 .rt-logo .rt-frame { background: #3d4450; }
 .rt-logo .rt-fit { inset: 8%; width: 84%; height: 84%; }
+/* While its image loads, the frame shows a near-black grey, close to the black of a frame without an
+   image. A faint light about two frames wide, brightest in its middle, sweeps across it and rests
+   until the next round. --rt-wave starts each card of a grid a little after the one before it. The
+   light's box is three frames wide and clear at its sides. It moves by transform: the GPU draws it
+   without repainting the card. The image stays hidden until it loads, then fades in: a failed image
+   never shows. */
+.rt-frame.rt-wait { background: #12171e; }
+.rt-frame.rt-wait::before { content: ""; position: absolute; inset: 0 -100%; transform: translateX(-60%);
+  background: linear-gradient(105deg, transparent 20%, #ffffff03 30%, #ffffff08 40%, #ffffff0c 50%, #ffffff08 60%,
+    #ffffff03 70%, transparent 80%);
+  animation: rt-wait ${WAIT_S}s linear var(--rt-wave, 0s) infinite; }
+@keyframes rt-wait { 65%, 100% { transform: translateX(60%); } }
+.rt-frame.rt-wait img { visibility: hidden; }
+.rt-frame:not(.rt-wait) img { animation: rt-fade 0.25s ease-out; }
 /* A game or an app in the grid looks like a Steam capsule, with its name under it, and takes the
    focus of Steam's library. scale(1.0526) draws Steam's translateZ(15px) in a 300px perspective.
    Steam draws the focus ring around the image: the card names it in focusRingSizeElementID. */

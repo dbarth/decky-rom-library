@@ -17,7 +17,7 @@ import {
   dataUrl, forgetInfos, forgetPicture, useImageUrl, useInfo, usePicture, usePlaytime, usePreview, useRomFiles,
 } from "./hooks";
 import { takeFocus } from "./focus";
-import { CSS } from "./styles";
+import { CSS, WAIT_S } from "./styles";
 
 export const GAMES_ROUTE = "/rom-library";
 export const GAME_ROUTE = "/rom-library/game";
@@ -38,14 +38,30 @@ export function formatSize(bytes: number): string {
   return `${n < 9.95 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
 }
 
-// Shows an image in a frame of the given shape, over a blurred copy of itself as the tile will.
-function Frame({ id, ratio, plain, onError }:
-  { id: string | null; ratio: number; plain?: boolean; onError?: () => void }) {
+// The delay of the light from one card of a grid to the next, in seconds.
+const WAVE_STEP = 0.1;
+
+// Shows an image in a frame of the given shape, over a blurred copy of itself as the tile will. The
+// frame shimmers while the id is undefined or the image loads, and stays black when there is none or
+// it fails to load. 'wave' is the card's rank in its grid: the light reaches it WAVE_STEP after the
+// card before. A negative delay starts the light at once, already in its round.
+function Frame({ id, ratio, plain, wave = 0, onError }:
+  { id: string | null | undefined; ratio: number; plain?: boolean; wave?: number; onError?: () => void }) {
   const url = useImageUrl(id);
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const show = url && url !== failed;
+  const wait = url === undefined || (show && url !== loaded);
+  const delay = ((wave * WAVE_STEP) % WAIT_S) - WAIT_S;
   return (
-    <div className="rt-frame" style={{ aspectRatio: String(ratio) }}>
-      {url && !plain && <img className="rt-backdrop" src={url} loading="lazy" />}
-      {url && <img className="rt-fit" src={url} loading="lazy" onError={onError} />}
+    <div className={wait ? "rt-frame rt-wait" : "rt-frame"}
+      style={{ aspectRatio: String(ratio), "--rt-wave": `${delay.toFixed(2)}s` } as CSSProperties}>
+      {show && !plain && <img className="rt-backdrop" src={url} loading="lazy" />}
+      {show && <img className="rt-fit" src={url} loading="lazy" onLoad={() => setLoaded(url)}
+        onError={() => {
+          setFailed(url);
+          onError?.();
+        }} />}
     </div>
   );
 }
@@ -142,7 +158,7 @@ function openGame(system: string, path: string) {
   Navigation.Navigate(GAME_ROUTE);
 }
 
-function GameCard({ system, game, sub }: { system: string; game: Game; sub?: string }) {
+function GameCard({ system, game, sub, wave }: { system: string; game: Game; sub?: string; wave?: number }) {
   const s = useStore();
   const busy = s.busy[game.path];
   const [broken, setBroken] = useState(false);
@@ -165,7 +181,7 @@ function GameCard({ system, game, sub }: { system: string; game: Game; sub?: str
       onSecondaryActionDescription={game.missing ? undefined : inSteam ? "Hide from Steam" : "Show in Steam"}
     >
       <div className="rt-media" id={media}>
-        <Frame key={image ?? ""} id={image} ratio={RATIO.portrait}
+        <Frame key={image ?? ""} id={image} ratio={RATIO.portrait} wave={wave}
           onError={() => (capsule ? setTried(tried + 1) : setBroken(true))} />
         {inSteam && <TileBadge missing={game.missing} />}
         {busy && <div className="rt-tile-busy"><Spinner /></div>}
@@ -176,13 +192,30 @@ function GameCard({ system, game, sub }: { system: string; game: Game; sub?: str
   );
 }
 
+// Three rows of cards at most stand in for a grid that loads.
+const WAIT_CARDS = 18;
+
+// Cards that shimmer in place of a grid whose games are not loaded yet. They take no focus.
+function WaitGrid({ count }: { count: number }) {
+  return (
+    <div className="rt-grid rt-games">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="rt-card rt-capsule">
+          <div className="rt-media"><Frame id={undefined} ratio={RATIO.portrait} wave={i} /></div>
+          <div className="rt-name">{"\u00a0"}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function GameGrid({ system }: { system: System }) {
   const games = useStore().games[system.id];
-  if (!games) return <SteamSpinner />;
+  if (!games) return <WaitGrid count={Math.min(system.games, WAIT_CARDS)} />;
   if (games.length === 0) return <div className="rt-empty">No game.</div>;
   return (
     <Focusable className="rt-grid rt-games" flow-children="grid">
-      {games.map((g) => <GameCard key={g.path} system={system.id} game={g} />)}
+      {games.map((g, i) => <GameCard key={g.path} system={system.id} game={g} wave={i} />)}
     </Focusable>
   );
 }
@@ -199,18 +232,18 @@ function Results() {
     .filter((g) => g.name.toLowerCase().includes(q) || g.file.toLowerCase().includes(q))
     .map((g) => ({ system: x, game: g }))), [s.games, q, available.length]);
   const loading = available.some((x) => !s.games[x.id]);
-  if (hits.length === 0) return loading ? <SteamSpinner /> : <div className="rt-empty">Nothing matches.</div>;
+  if (hits.length === 0) return loading ? <WaitGrid count={WAIT_CARDS} /> : <div className="rt-empty">Nothing matches.</div>;
   return (
     <Focusable className="rt-grid rt-games" flow-children="grid">
-      {hits.map(({ system, game }) => (
-        <GameCard key={game.path} system={system.id} game={game} sub={system.name} />
+      {hits.map(({ system, game }, i) => (
+        <GameCard key={game.path} system={system.id} game={game} sub={system.name} wave={i} />
       ))}
     </Focusable>
   );
 }
 
 // An emulator or a front-end, marked like a tile while Steam's library shows it.
-function AppCard({ app }: { app: Game }) {
+function AppCard({ app, wave }: { app: Game; wave?: number }) {
   const busy = useStore().busy[app.path];
   const [tried, setTried] = useState(0);
   const capsules = app.appid != null ? capsulesOf(app.appid) : [];
@@ -222,7 +255,8 @@ function AppCard({ app }: { app: Game }) {
       onSecondaryButton={() => showApp(app, !shown)}
       onSecondaryActionDescription={shown ? "Hide from Steam" : "Show in Steam"}>
       <div className="rt-media" id={media}>
-        <Frame key={tried} id={capsules[tried] ?? null} ratio={RATIO.portrait} onError={() => setTried(tried + 1)} />
+        <Frame key={tried} id={capsules[tried] ?? null} ratio={RATIO.portrait} wave={wave}
+          onError={() => setTried(tried + 1)} />
         {shown && <TileBadge />}
         {busy && <div className="rt-tile-busy"><Spinner /></div>}
       </div>
@@ -233,11 +267,11 @@ function AppCard({ app }: { app: Game }) {
 
 function AppGrid() {
   const apps = useStore().games[APPS];
-  if (!apps) return <SteamSpinner />;
+  if (!apps) return <WaitGrid count={6} />;
   if (apps.length === 0) return <div className="rt-empty">No app besides the tiles.</div>;
   return (
     <Focusable className="rt-grid rt-games" flow-children="grid">
-      {apps.map((a) => <AppCard key={a.path} app={a} />)}
+      {apps.map((a, i) => <AppCard key={a.path} app={a} wave={i} />)}
     </Focusable>
   );
 }
@@ -252,7 +286,7 @@ export function GamesPage() {
   const available = (s.systems ?? []).filter((x) => x.available);
   useFolderWatch(s.appsTab ? null : s.systemId ?? available[0]?.id ?? null);
   let body: ReactNode;
-  if (!s.systems) body = <SteamSpinner />;
+  if (!s.systems) body = <Scroll><Tab><WaitGrid count={WAIT_CARDS} /></Tab></Scroll>;
   else if (s.query.trim()) body = <Scroll><Results /></Scroll>;
   else if (available.length === 0) body = <Scroll><div className="rt-empty">No ROMs found for the installed emulators.</div></Scroll>;
   else body = (
@@ -721,8 +755,8 @@ function ArtTabs({ system, path, first }: { system: string; path: string; first:
 // Candidates by game and kind, kept while Steam runs.
 const offers = new Map<string, Promise<{ current: string | null; items: Candidate[] }>>();
 
-function CandidateCard({ kind, item, current, onPick }:
-  { kind: Kind; item: Candidate; current: boolean; onPick: () => void }) {
+function CandidateCard({ kind, item, current, wave, onPick }:
+  { kind: Kind; item: Candidate; current: boolean; wave: number; onPick: () => void }) {
   const [broken, setBroken] = useState(false);
   if (broken) return null;
   const size = item.size ? ` ${item.size[0]}×${item.size[1]}` : "";
@@ -730,7 +764,8 @@ function CandidateCard({ kind, item, current, onPick }:
     <Focusable className={`rt-card${kind === "logo" ? " rt-logo" : ""}`} onActivate={onPick}
       onOKActionDescription="Use this image">
       <div className="rt-media">
-        <Frame id={item.thumb ?? item.id} ratio={RATIO[kind]} plain={kind === "logo"} onError={() => setBroken(true)} />
+        <Frame id={item.thumb ?? item.id} ratio={RATIO[kind]} plain={kind === "logo"} wave={wave}
+          onError={() => setBroken(true)} />
         {current && <span className="rt-badge">Current</span>}
       </div>
       <div className="rt-label">{item.source} {item.label.toLowerCase()}{size}</div>
@@ -769,8 +804,8 @@ function Candidates({ system, path, kind }: { system: string; path: string; kind
   };
   return (
     <Focusable className={`rt-grid rt-art-${kind}`} flow-children="grid">
-      {offer.items.map((item) => (
-        <CandidateCard key={item.id} kind={kind} item={item} current={item.id === offer.current}
+      {offer.items.map((item, i) => (
+        <CandidateCard key={item.id} kind={kind} item={item} current={item.id === offer.current} wave={i}
           onPick={() => pick(item)} />
       ))}
     </Focusable>
