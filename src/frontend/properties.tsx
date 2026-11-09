@@ -137,8 +137,8 @@ function edenPages(emulator: Emulator, driver: ReactNode): SystemPages {
           <Setting label="Console mode" name="docked" options={EDEN.docked} emulator={emulator} />
           <Setting label="Resolution" name="resolution" options={EDEN.resolution} emulator={emulator} />
           <Setting label="Scaling filter" name="filter" options={EDEN.filter} emulator={emulator} />
-          {driver}
           <div className="rt-prop-heading">Advanced settings</div>
+          {driver}
           <Setting label="GPU accuracy" name="accuracy" options={EDEN.accuracy} emulator={emulator} />
           <Setting label="Asynchronous GPU" name="async_gpu" options={ON_OFF} emulator={emulator} />
           <Setting label="Asynchronous shaders" name="async_shaders" options={ON_OFF} emulator={emulator} />
