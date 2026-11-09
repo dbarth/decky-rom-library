@@ -67,8 +67,8 @@ class LibraryTest(unittest.TestCase):
         with open(ini) as f:
             text = f.read()
         self.assertIn("confirmStop\\default=false\nconfirmStop=2\n", text)
-        # Eden reads the updates beside the games, and ES-DE skips them.
-        self.assertIn(f"Paths\\external_content_dirs\\1\\path={self.h.rom('switch/updates')}\n", text)
+        # Eden reads the updates in the games' folder and its subfolders. ES-DE skips the updates folder.
+        self.assertIn(f"Paths\\external_content_dirs\\1\\path={self.h.rom('switch')}\n", text)
         self.assertTrue(os.path.exists(self.h.rom("switch/updates/noload.txt")))
 
     def test_vulkan_driver(self):
@@ -209,6 +209,17 @@ class LibraryTest(unittest.TestCase):
         self.lib.uninstall("psp", game)
         self.assertFalse(os.path.exists(game))
         self.assertEqual([g["name"] for g in self.lib.games("psp")], ["LittleBigPlanet", "Other"])
+
+    def test_switch_updates_and_dlc_on_a_card_join_their_game(self):
+        card = os.path.join(self.h.root, "run/media/steamos/SN128/Emulation/roms")
+        for name in ("Zelda TotK [0100F2C0115B6000][v0].xci", "Zelda TotK [0100F2C0115B6800][v720896].nsp",
+                     "Zelda TotK DLC [0100F2C0115B7001][v0].nsp"):
+            touch(os.path.join(card, "switch", name))
+        self.addCleanup(setattr, esde, "CARD_ROM_DIRS", esde.CARD_ROM_DIRS)
+        esde.CARD_ROM_DIRS = (os.path.join(self.h.root, "run/media/*/*/Emulation/roms"),)
+        self.assertEqual(sorted(g["name"] for g in self.lib.games("switch")), ["TUNIC", "Zelda TotK"])
+        system = self.lib.systems()["switch"]
+        self.assertEqual(self.lib.content_dirs(system), [self.h.rom("switch"), card + "/switch"])
 
     def test_system_list_names_emulator_and_extensions(self):
         systems = {s["id"]: s for s in self.lib.system_list()}

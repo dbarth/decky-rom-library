@@ -277,24 +277,25 @@ class Library:
         """Return a Switch game's title id, such as 01007EF00011E000, else None."""
         return self.decoded.facts(sid, self.game(sid, path)["path"]).get("serial")
 
-    def updates(self, system):
-        """Return the folder of a Switch system's updates and DLC, made when missing, else None. ES-DE
-        skips a folder that holds a noload.txt."""
+    def content_dirs(self, system):
+        """Return the folders where Eden finds a Switch system's updates and DLC: each folder of its
+        games. Eden reads their subfolders and skips the games. Make the main folder's updates folder
+        when missing, with a noload.txt: ES-DE skips it."""
         folder = system["esde"] and self.esde.system_dir(system["esde"])
         if not folder or not os.path.isdir(folder):
-            return None
+            return []
         updates = os.path.join(folder, "updates")
         os.makedirs(updates, exist_ok=True)
         if not os.path.exists(os.path.join(updates, "noload.txt")):
             open(os.path.join(updates, "noload.txt"), "w").close()
-        return updates
+        return [r for r in system["roots"] if os.path.isdir(r)]
 
     def setup(self):
         """Give the installed emulators the handheld's defaults at the plugin's start, for the tiles
         made before. Only Eden's for now. A failure leaves the emulator as it is."""
         try:
             switch = next((s for s in self.systems().values() if self.runs(s, "EDEN")), None)
-            for path in self.eden.setup(switch and self.updates(switch)):
+            for path in self.eden.setup(self.content_dirs(switch) if switch else []):
                 self.log.info(f"Eden's handheld defaults: {path}")
         except OSError as e:
             self.log.warning(f"Eden's defaults: {e}")
@@ -306,7 +307,7 @@ class Library:
             if self.runs(system, "DOLPHIN"):
                 self.dolphin.prepare(self.disc(sid, path)[0])
             elif self.runs(system, "EDEN"):
-                self.eden.prepare(self.switch_id(sid, path), self.updates(system))
+                self.eden.prepare(self.switch_id(sid, path), self.content_dirs(system))
         except (OSError, ValueError, wii.Unreadable) as e:
             self.log.warning(f"The emulator's defaults for {os.path.basename(path)}: {e}")
 
@@ -914,7 +915,7 @@ class Library:
         game = self.game(sid, path, systems)
         own = dict(self.decoded.facts(sid, game["path"]))
         if sid == "switch" and own.get("serial") and own.get("version"):
-            update = info.switch_update(self.root_of(system, game["path"]), own["serial"])
+            update = next(filter(None, (info.switch_update(r, own["serial"]) for r in system["roots"])), None)
             version = update and self.decoded.facts(sid, update).get("version")
             if version and version != own["version"]:
                 own["version"] = f"{own['version']}, update {version}"

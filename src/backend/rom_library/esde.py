@@ -45,6 +45,9 @@ OTHER_FOLDERS = {
     "sg-1000": ("sg1000",), "stv": ("st-v",), "supergrafx": ("sgfx",), "tg-cd": ("tg16cd",), "tic80": ("tic-80",),
     "trs-80": ("trs80",), "vic20": ("c20",), "wonderswan": ("wswan",), "wonderswancolor": ("wswanc",),
 }
+# A Switch file's title id in brackets. A game's id ends in 000, its update's in 800 and a DLC's in
+# its index.
+SWITCH_ID = re.compile(r"\[(01[0-9a-f]{14})\]", re.IGNORECASE)
 # Directories a desktop session puts on PATH, for the systempath rules.
 SESSION_PATH = (
     "~/.local/bin", "~/bin", "/usr/local/bin", "/usr/bin", "/bin",
@@ -84,6 +87,12 @@ def unescape(path):
 def extension(name):
     dot = name.rfind(".")
     return name[dot:] if dot != -1 else "."
+
+
+def switch_addon(name):
+    """Return whether a Switch file's name holds the title id of an update or a DLC."""
+    found = SWITCH_ID.search(name)
+    return bool(found) and int(found[1], 16) & 0xFFF != 0
 
 
 def stem(path):
@@ -496,10 +505,11 @@ class EsDe:
 
     def scan(self, system, folders=None):
         """Return the game paths in a system's folders, or in the folders given, as ES-DE's
-        populateFolder() finds them."""
+        populateFolder() finds them. Switch updates and DLC stay out: Eden adds them to their game."""
         roots = [r for r in (self.system_dirs(system) if folders is None else folders)
                  if os.path.isdir(r) and not os.path.exists(os.path.join(r, "noload.txt"))]
         extensions = set(system["extensions"])
+        switch = system["name"] == "switch"
         show_hidden = self.setting("ShowHiddenFiles", "true") == "true"
         found, seen = [], set()
 
@@ -518,7 +528,8 @@ class EsDe:
                 is_dir = entry.is_dir()
                 ext = extension(entry.name)
                 if ext in extensions and not (is_dir and ext == "."):
-                    found.append(entry.path)
+                    if not (switch and switch_addon(entry.name)):
+                        found.append(entry.path)
                 elif is_dir and not os.path.exists(os.path.join(entry.path, "noload.txt")):
                     walk(entry.path, depth + 1)
 

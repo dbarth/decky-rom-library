@@ -130,8 +130,8 @@ class EdenTest(unittest.TestCase):
 
     def test_setup_adds_the_folder_of_updates_once(self):
         self.write(UI.replace("[UI]\n", "[UI]\nPaths\\external_content_dirs\\size=0\n"))
-        self.e.setup("/roms/switch/updates")
-        self.e.setup("/roms/switch/updates")
+        self.e.setup(["/roms/switch/updates"])
+        self.e.setup(["/roms/switch/updates"])
         lines = self.read().splitlines()
         self.assertEqual(eden.qt_get(lines, "UI", "Paths\\external_content_dirs\\size"), "1")
         self.assertEqual(eden.qt_get(lines, "UI", "Paths\\external_content_dirs\\1\\path"), "/roms/switch/updates")

@@ -101,12 +101,12 @@ class Eden:
     def custom(self, game_id):
         return os.path.join(self.config, "custom", f"{game_id}.ini")
 
-    def setup(self, updates=None):
+    def setup(self, content=()):
         """Let SIGTERM stop a game without a question, hide the status bar, start in fullscreen, skip
         the update check and take the system's language, unless the user chose a value in Eden. Move
         player 1's buttons from the keyboard to the gamepad, and its motion to the DSU server when it
-        runs. Add the folder of updates. Give Eden's window the screen's size. Eden reads its files at
-        start and writes them back at exit. Return the files changed."""
+        runs. Add the folders of updates and DLC. Give Eden's window the screen's size. Eden reads its
+        files at start and writes them back at exit. Return the files changed."""
         changed = []
         lines = read(self.ini)
         if lines is not None:
@@ -121,8 +121,8 @@ class Eden:
                 for key, value in PAD_KEYS.items():
                     new = qt_set(qt_set(new, "Controls", key + "\\default", "false"), "Controls", key,
                                  f'"{PAD},{value}"')
-            if updates:
-                new = add_content_dir(new, updates)
+            for folder in content:
+                new = add_content_dir(new, folder)
             if dsu.running():
                 for key in MOTIONS:
                     if "engine:keyboard" in qt_value(new, "Controls", key, "engine:keyboard"):
@@ -157,10 +157,10 @@ class Eden:
         globals_["swap"] = "false"
         return {"id": game_id, "values": values, "globals": globals_}
 
-    def prepare(self, game_id, updates=None):
+    def prepare(self, game_id, content=()):
         """Give Eden the handheld's defaults, then copy the global buttons again for a game that swaps
         A and B."""
-        self.setup(updates)
+        self.setup(content)
         if game_id and qt_get(read(self.custom(game_id)) or [], "Controls", PROFILE) == SWAP_PROFILE:
             self.swap(game_id, True)
 
