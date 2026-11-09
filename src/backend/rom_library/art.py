@@ -1,6 +1,7 @@
 """Tile artwork from ES-DE's scraped media, the libretro thumbnails, SteamGridDB or an app's icon."""
 import base64
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -46,8 +47,23 @@ SGDB_ASSETS = {
 }
 
 
+# SteamGridDB writes some sequels with a digit: Planet of Lana 2 for Planet of Lana II.
+ROMAN = {"ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9", "x": "10"}
+# An article No-Intro puts after the title.
+ARTICLE = re.compile(r"^(.+?), (The|A|An)\b")
+
+
 def simplify(name):
     return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def words(name):
+    """Return a name's words, with each Roman numeral as a digit."""
+    return [ROMAN.get(w, w) for w in re.findall(r"[a-z0-9]+", name.lower())]
+
+
+def numbered(name):
+    return "".join(words(name))
 
 
 def ext_of(name):
@@ -196,15 +212,26 @@ class Artwork:
         return not sizes or (asset.get("width"), asset.get("height")) in sizes
 
     def sgdb_id(self, name):
+        # No-Intro writes "Legend of Zelda, The - Ocarina of Time".
+        name = ARTICLE.sub(r"\2 \1", name)
         key = simplify(name)
         if key in self.ids:
             return self.ids[key]
         url = f"{SGDB}/search/autocomplete?term=" + urllib.parse.quote(name)
         results = self.get_json(url).get("data") or []
-        # Take an exact match, or a result that extends the name, never a guess.
+        # Take an exact match, or a result that extends the name. Else take the longest result of 2
+        # words or more that begins the name and ends on one of its words, for a subtitle or a
+        # version the site leaves out: Planet of Lana II Children of the Leaf, Majoras Mask Redux.
+        # Only this last guess reads a Roman numeral as a digit: Mega Man II and Mega Man 2 are two
+        # games.
         match = next((r for r in results if simplify(r["name"]) == key), None)
         if match is None:
             match = next((r for r in results if simplify(r["name"]).startswith(key)), None)
+        if match is None:
+            ends = set(itertools.accumulate(len(w) for w in words(name)))
+            heads = [r for r in results if len(words(r["name"])) >= 2
+                     and numbered(name).startswith(numbered(r["name"])) and len(numbered(r["name"])) in ends]
+            match = max(heads, key=lambda r: len(numbered(r["name"])), default=None)
         self.ids[key] = match["id"] if match else None
         write_json(self.ids_file, self.ids)
         return self.ids[key]
