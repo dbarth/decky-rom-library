@@ -42,6 +42,10 @@ class SgdbTest(unittest.TestCase):
         self.assertEqual(a.sgdb_id("Mega Man II"), 22)
         self.assertEqual(a.sgdb_id("Mega Man 2"), 2)
 
+    def test_unknown_name_is_asked_again_at_start(self):
+        self.assertIsNone(self.artwork([]).sgdb_id("Planet"))
+        self.assertEqual(self.artwork([{"name": "Planet", "id": 7}]).sgdb_id("Planet"), 7)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,8 @@ import itertools
 import json
 import os
 import re
+import threading
+import time
 import urllib.error
 import urllib.parse
 
@@ -75,7 +77,11 @@ class Artwork:
         self.cache = cache_dir
         self.log = log
         self.ids_file = os.path.join(cache_dir, "sgdb-ids.json")
-        self.ids = read_json(self.ids_file, {})
+        # A name SteamGridDB did not know is asked again at the next start: the site adds games.
+        self.ids = {k: v for k, v in read_json(self.ids_file, {}).items() if v is not None}
+        # SteamGridDB answered 4 requests in 250 ms with a page that is not JSON (8 November 2026): its
+        # API gets one request at a time.
+        self.api_lock = threading.Lock()
 
     def default(self, media, kind):
         """Return the id of the first image found for one kind, or None.
@@ -262,11 +268,26 @@ class Artwork:
         with web.urlopen(url, body, headers) as r:
             return r.read()
 
+    def api(self, url, body=None):
+        """Return SteamGridDB's JSON answer. An answer that is not JSON gets one more try 1 s later."""
+        with self.api_lock:
+            data = self.open(url, body)
+            try:
+                return json.loads(data)
+            except ValueError:
+                self.log.warning(f"SteamGridDB answered {data[:80]!r}, trying again")
+            time.sleep(1)
+            data = self.open(url, body)
+            try:
+                return json.loads(data)
+            except ValueError:
+                raise ValueError(f"SteamGridDB answered {data[:80]!r}") from None
+
     def get_json(self, url):
-        return json.loads(self.open(url))
+        return self.api(url)
 
     def post_json(self, url, body):
-        return json.loads(self.open(url, body))
+        return self.api(url, body)
 
     def get(self, url, missing_ok=False):
         path = os.path.join(self.cache, hashlib.sha1(url.encode()).hexdigest())

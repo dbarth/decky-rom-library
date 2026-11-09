@@ -36,7 +36,8 @@ export function useImageUrl(id: string | null): string | null {
   return url;
 }
 
-// Previews of the games that have no title screen, by ROM path.
+// Previews of the games that have no title screen, by ROM path. A preview not found is asked again
+// when its card shows next: SteamGridDB may have failed.
 const previews = new Map<string, Promise<string | null>>();
 
 export function usePreview(system: string, game: Game): string | null {
@@ -45,7 +46,10 @@ export function usePreview(system: string, game: Game): string | null {
     if (game.thumb) return;
     if (!previews.has(game.path)) previews.set(game.path, getPreview(system, game.path).catch(() => null));
     let live = true;
-    previews.get(game.path)!.then((found) => live && setId(found));
+    previews.get(game.path)!.then((found) => {
+      if (!found) previews.delete(game.path);
+      if (live) setId(found);
+    });
     return () => {
       live = false;
     };
