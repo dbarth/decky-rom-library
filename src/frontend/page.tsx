@@ -1,6 +1,6 @@
 import {
   ConfirmModal, DialogButton, Focusable, GamepadButton, Menu, MenuItem, MenuSeparator, ModalRoot, Navigation,
-  Router, SteamSpinner, Tabs, TextField, showContextMenu, showModal,
+  SteamSpinner, Tabs, TextField, showContextMenu, showModal,
 } from "@decky/ui";
 import type { GamepadEvent } from "@decky/ui";
 import { CSSProperties, ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -9,7 +9,8 @@ import {
   uninstallEmulator, update, useFolderWatch, useStore,
 } from "./store";
 import {
-  APPS, AppKind, Candidate, Game, Kind, RomFiles, System, capsulesOf, getCandidates, getImage, isHidden, refreshInfo,
+  APPS, AppKind, Candidate, Game, Kind, RomFiles, System, capsulesOf, getCandidates, getImage, isHidden, mainHistory,
+  refreshInfo,
 } from "./tiles";
 import { GameInfo, MONTHS, factsOf, hasFacts } from "./gameinfo";
 import {
@@ -116,14 +117,6 @@ function Tab({ children }: { children: ReactNode }) {
 export function openGames() {
   Navigation.Navigate(GAMES_ROUTE);
   Navigation.CloseSideMenus();
-}
-
-// Steam's main window history. @decky/ui does not type it.
-function mainHistory() {
-  const main = Router.WindowStore?.GamepadUIMainWindowInstance as {
-    m_history?: { location?: { pathname?: string }; replace?: (path: string) => void };
-  };
-  return main?.m_history;
 }
 
 // The route of Steam's main window, such as /library/app/<appid> or /rom-library/game.

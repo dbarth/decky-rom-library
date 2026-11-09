@@ -1,4 +1,5 @@
 import { callable } from "@decky/api";
+import { Router } from "@decky/ui";
 
 export interface System {
   id: string;
@@ -434,8 +435,48 @@ export async function addTile(system: string, game: Game): Promise<number> {
   return appid;
 }
 
+// Steam's main window history. @decky/ui does not type it.
+export function mainHistory() {
+  const main = Router.WindowStore?.GamepadUIMainWindowInstance as {
+    m_history?: {
+      location?: { pathname?: string };
+      push?: (...args: unknown[]) => unknown;
+      replace?: (path: string) => void;
+    };
+  };
+  return main?.m_history;
+}
+
+// Puts back Steam's push of the main window, if skipAppPage replaced it.
+let unskip: (() => void) | null = null;
+
+// Steam opens a game's library page when it starts the game, and comes back to it when the game
+// ends. Drops Steam's next push of that page within 10 s: a game started from ROM Library starts
+// from its page and ends on it.
+function skipAppPage(appid: number) {
+  unskip?.();
+  const history = mainHistory();
+  const push = history?.push;
+  if (!history || !push) return;
+  const page = new RegExp(`^/library/app/${appid >>> 0}(?:[/?#]|$)`);
+  const skip = function (this: unknown, ...args: unknown[]) {
+    const to = args[0] as string | { pathname?: string } | undefined;
+    if (!page.test(typeof to === "string" ? to : to?.pathname ?? "")) return push.apply(this, args);
+    unskip?.();
+    return undefined;
+  };
+  const timer = setTimeout(() => unskip?.(), 10000);
+  unskip = () => {
+    clearTimeout(timer);
+    if (history.push === skip) history.push = push;
+    unskip = null;
+  };
+  history.push = skip;
+}
+
 function run(appid: number) {
   const app = appStore.GetAppOverviewByAppID(appid);
+  skipAppPage(appid);
   SteamClient.Apps.RunGame(app?.m_gameid ?? String(appid), "", -1, 100);
 }
 
@@ -467,6 +508,12 @@ export async function playGame(system: string, game: Game): Promise<void> {
     const d = await details(appid);
     if (d?.strShortcutLaunchOptions === s.launch_options && d?.strDisplayName === s.name) break;
     await new Promise((r) => setTimeout(r, 200));
+  }
+  // Steam shows the shortcut's page while the game starts: drop the previous game's art first.
+  try {
+    await Promise.all(Object.values(ASSET).map((a) => apps().ClearCustomArtworkForApp(appid, a)));
+  } catch (e) {
+    console.warn("ROM Library: launcher art", e);
   }
   run(appid);
   // Steam shows the running game with the shortcut's art: give it the game's, after the launch.
