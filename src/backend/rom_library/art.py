@@ -79,6 +79,9 @@ class Artwork:
         self.ids_file = os.path.join(cache_dir, "sgdb-ids.json")
         # A name SteamGridDB did not know is asked again at the next start: the site adds games.
         self.ids = {k: v for k, v in read_json(self.ids_file, {}).items() if v is not None}
+        # The thumbnail of each SteamGridDB image found, as its search gives it: a PNG may have a PNG
+        # or a JPEG thumbnail.
+        self.thumbs = {}
         # SteamGridDB answered 4 requests in 250 ms with a page that is not JSON (8 November 2026): its
         # API gets one request at a time.
         self.api_lock = threading.Lock()
@@ -162,11 +165,9 @@ class Artwork:
             return found[0][0]
         return self.libretro_url(media, "Named_Titles") if media["libretro"] else None
 
-    @staticmethod
-    def small(image_id):
-        """Return SteamGridDB's thumbnail URL for one of its images, else the id."""
-        m = re.fullmatch(r"(https://cdn2\.steamgriddb\.com/)\w+/(\w+)\.\w+", image_id or "")
-        return f"{m.group(1)}thumb/{m.group(2)}.jpg" if m else image_id
+    def small(self, image_id):
+        """Return the thumbnail of a SteamGridDB image found since the start, else the id."""
+        return self.thumbs.get(image_id) or image_id
 
     def image(self, image_id):
         """Return {data, ext} for an id from default() or candidates()."""
@@ -204,6 +205,7 @@ class Artwork:
             assets = self.post_json(f"{SGDB}/search/assets", body)["data"]["assets"]
             if not assets:
                 return []
+            self.thumbs.update((a["url"], a["thumb"]) for a in assets if a.get("thumb"))
             found = [a for a in assets if self.usable(a, sizes)]
             if found:
                 return found

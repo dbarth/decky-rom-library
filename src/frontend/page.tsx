@@ -154,12 +154,12 @@ function GameCard({ system, game, sub }: { system: string; game: Game; sub?: str
   const busy = s.busy[game.path];
   const [broken, setBroken] = useState(false);
   const [tried, setTried] = useState(0);
-  const thumb = usePreview(system, game);
+  const thumb = usePreview(system, game, broken);
   const inSteam = game.appid != null;
   // A tile shows its Steam capsule, the title screen until it has one.
   const urls = inSteam ? capsules(game.appid!, s.artVersion) : [];
   const capsule = urls[tried] ?? null;
-  const image = capsule ?? (broken ? null : thumb);
+  const image = capsule ?? thumb;
   const media = useId();
   return (
     <Focusable

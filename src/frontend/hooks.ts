@@ -40,10 +40,12 @@ export function useImageUrl(id: string | null): string | null {
 // when its card shows next: SteamGridDB may have failed.
 const previews = new Map<string, Promise<string | null>>();
 
-export function usePreview(system: string, game: Game): string | null {
+// Returns the card's image: the title screen, else a preview the backend finds. 'failed' is true once
+// the title screen did not load: libretro has none for a name such as After Burner (VER 1.31).
+export function usePreview(system: string, game: Game, failed = false): string | null {
   const [id, setId] = useState(game.thumb);
   useEffect(() => {
-    if (game.thumb) return;
+    if (game.thumb && !failed) return;
     if (!previews.has(game.path)) previews.set(game.path, getPreview(system, game.path).catch(() => null));
     let live = true;
     previews.get(game.path)!.then((found) => {
@@ -53,7 +55,7 @@ export function usePreview(system: string, game: Game): string | null {
     return () => {
       live = false;
     };
-  }, [game.path]);
+  }, [game.path, failed]);
   return id;
 }
 

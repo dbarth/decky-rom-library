@@ -46,6 +46,16 @@ class SgdbTest(unittest.TestCase):
         self.assertIsNone(self.artwork([]).sgdb_id("Planet"))
         self.assertEqual(self.artwork([{"name": "Planet", "id": 7}]).sgdb_id("Planet"), 7)
 
+    def test_thumbnail_comes_from_the_search(self):
+        a = self.artwork([{"name": "Zelda", "id": 1}])
+        png = "https://cdn2.steamgriddb.com/grid/6176.png"
+        a.post_json = lambda url, body: {"data": {"assets": [
+            {"url": png, "thumb": "https://cdn2.steamgriddb.com/thumb/6176.png", "width": 920, "height": 430,
+             "mime": "image/png", "style": "alternate"}]}}
+        self.assertEqual(a.default_sgdb({"name": "Zelda", "art": ["sgdb"]}, "landscape"), png)
+        self.assertEqual(a.small(png), "https://cdn2.steamgriddb.com/thumb/6176.png")
+        self.assertEqual(a.small("https://cdn2.steamgriddb.com/grid/other.png"), "https://cdn2.steamgriddb.com/grid/other.png")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -205,10 +205,13 @@ class Plugin:
     async def uninstall_app(self, appid):
         await asyncio.to_thread(library.uninstall_app, int(appid))
 
-    # Returns an image id for a game that has no title screen to show.
+    # Returns an image id for a game that has no title screen to show: its capsule, else a wide image.
+    # The user's pick of each comes first.
     async def preview(self, system, path):
         def find():
-            image_id = library.choice(path, "landscape") or artwork.default(library.media(system, path), "landscape")
+            media = library.media(system, path)
+            image_id = (library.choice(path, "portrait") or artwork.default(media, "portrait")
+                        or library.choice(path, "landscape") or artwork.default(media, "landscape"))
             return artwork.small(image_id)
         return await asyncio.to_thread(find)
 
