@@ -1,7 +1,8 @@
 # ROM Library
 
-ROM Library is a Decky plugin that brings your console and arcade games into
-Steam's game mode.
+ROM Library is a Decky plugin that turns your ROMs into proper Steam tiles with
+control over their artwork or emulator options (controllers, display, drivers),
+right from the SteamOS environment.
 
 - Present console games like real Steam games, with artwork, stats, history and more.
 - Play a game or change its settings from its page, without complex frontend

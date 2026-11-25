@@ -10,7 +10,7 @@ HOST=${1:-armada@armada.local}
 npm run build
 rm -rf out
 mkdir -p out/rom-library/py_modules
-cp -R package.json LICENSE dist src/backend/main.py src/backend/plugin.json out/rom-library/
+cp -R package.json LICENSE dist src/backend/main.py plugin.json out/rom-library/
 cp -R src/backend/rom_library out/rom-library/py_modules/
 cp -R src/backend/defaults/. out/rom-library/
 find out -name __pycache__ -prune -exec rm -rf {} +

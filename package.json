@@ -1,7 +1,7 @@
 {
   "name": "rom-library",
   "version": "0.4.0",
-  "description": "Brings your console and arcade games into Steam's game mode",
+  "description": "Turns your ROMs into proper Steam tiles with control over their artwork or emulator options.",
   "type": "module",
   "scripts": {
     "build": "rollup -c tools/rollup.config.js",
@@ -10,7 +10,7 @@
   },
   "license": "MIT",
   "decky-vite": {
-    "manifest": "src/backend/plugin.json",
+    "manifest": "plugin.json",
     "entry": "src/frontend/index.tsx",
     "backend": ["src/backend/main.py", "src/backend/rom_library", "src/backend/defaults/"],
     "hooks": "tools/decky-vite.hooks.ts",
