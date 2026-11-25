@@ -3,7 +3,7 @@ import type { FileSelectionType } from "@decky/api";
 import { Router } from "@decky/ui";
 import { useEffect, useReducer } from "react";
 import {
-  APPS, Game, Kind, System, addTile, applyImage, describeApp, gameRunning, gamesStamp, importGame, listGames,
+  APPS, Game, Kind, LibrariesChange, System, addTile, applyImage, describeApp, gameRunning, gamesStamp, importGame, listGames,
   listSystems, playGame, pruneGames, quitGame, removeTile, setHidden, syncApps, syncTiles, terminateApp, tileExists,
   uninstallApp, uninstallRom,
 } from "./tiles";
@@ -149,6 +149,14 @@ export async function addGame(system: System, from: string): Promise<void> {
   } catch (e) {
     toast(`${name}: ${e}`);
   }
+}
+
+// Reads the ROM folders again when a drive brings or takes a library, unless a game runs: the next
+// opening of the panel or the page does it then.
+export function librariesChanged(change: LibrariesChange) {
+  for (const m of change.moved) toast(`${m.drive.name}: library now at ${m.where}`);
+  for (const f of change.found) toast(`${f.drive.name}: ${f.games} games in ${f.where}. Add them in Libraries.`);
+  if (!Router.MainRunningApp) refresh().catch(() => undefined);
 }
 
 let refreshing: Promise<void> | null = null;

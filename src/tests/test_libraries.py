@@ -10,7 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "backend"))
 sys.path.insert(0, HERE)
 
-from rom_library import esde, libraries, library  # noqa: E402
+from rom_library import esde, libraries, library, picks  # noqa: E402
 from test_esde import ARM_FILES, Home, touch  # noqa: E402
 
 DEFAULTS = os.path.join(HERE, "..", "backend", "defaults")
@@ -170,13 +170,14 @@ class LibrariesTest(unittest.TestCase):
         self.lib.record(zelda, 1, "snes", applied)
         self.lib.record(metroid, 2, "snes", applied)
         self.lib.record(fusion, 3, "gba", applied)
-        self.lib.choices[zelda] = {"portrait": "file:/art/zelda.png"}
+        self.lib.choose(zelda, "portrait", "file:/art/zelda.png")
         # The internal storage holds a copy of Zelda, and a Super Metroid of another size.
         touch(self.h.rom("snes/Zelda.sfc"), "x" * 200)
         touch(self.h.rom("snes/Super Metroid.sfc"), "x" * 299)
         self.lib.use_library(self.h.roms)
         self.assertEqual(self.lib.tiles[self.h.rom("snes/Zelda.sfc")]["appid"], 1)
-        self.assertEqual(self.lib.choices, {self.h.rom("snes/Zelda.sfc"): {"portrait": "file:/art/zelda.png"}})
+        self.assertEqual(self.lib.choice(self.h.rom("snes/Zelda.sfc"), "portrait"), "file:/art/zelda.png")
+        self.assertIsNone(self.lib.choice(zelda, "portrait"))
         self.assertEqual(sorted(p for p, tile in self.lib.tiles.items() if tile["appid"] != 1), sorted([metroid, fusion]))
         games = {g["path"]: g for g in self.lib.games("snes")}
         self.assertFalse(games[self.h.rom("snes/Zelda.sfc")]["missing"])
@@ -184,6 +185,105 @@ class LibrariesTest(unittest.TestCase):
         # The move lasts: a new library object reads it from tiles.json.
         self.assertIn(self.h.rom("snes/Zelda.sfc"), library.Library(
             DEFAULTS, self.settings, self.h.home, os.path.join(self.h.root, "runtime"), logging.getLogger()).tiles)
+
+    def mount(self, label):
+        """Mount the card under another label."""
+        card = os.path.join(os.path.dirname(self.card), label)
+        os.rename(self.card, card)
+        mounts = os.path.join(os.path.realpath(self.h.root), "mounts")
+        with open(mounts) as f:
+            table = f.read()
+        touch(mounts, table.replace(f" {self.card} ", f" {card} "))
+        self.card, self.sd = card, os.path.join(card, "Emulation/roms")
+
+    def library_file(self, root):
+        with open(os.path.join(root, picks.FILE)) as f:
+            return json.load(f)
+
+    def test_picks_live_in_the_library_of_their_game(self):
+        self.lib.combine_libraries(self.h.roms, [self.sd])
+        zelda = os.path.join(self.sd, "snes/Zelda.sfc")
+        self.lib.choose(zelda, "portrait", "sgdb:1")
+        self.lib.set_vulkan_driver(zelda, "mesa-26.3")
+        self.lib.choose("app:12", "hero", "sgdb:2")
+        self.assertEqual(self.library_file(self.sd)["games"],
+                         {"snes/Zelda.sfc": {"art": {"portrait": "sgdb:1"}, "driver": "mesa-26.3"}})
+        # An app is in no library: the plugin keeps its picks.
+        self.assertEqual(self.lib.picks.art, {"app:12": {"hero": "sgdb:2"}})
+        self.assertEqual(self.lib.vulkan_driver(zelda)["driver"], "mesa-26.3")
+        self.lib.set_vulkan_driver(zelda, None)
+        self.lib.choose(zelda, "portrait", None)
+        self.assertEqual(self.library_file(self.sd)["games"], {})
+
+    def test_the_plugin_moves_its_picks_into_the_libraries(self):
+        zelda, gone = os.path.join(self.sd, "snes/Zelda.sfc"), os.path.join(self.sd, "snes/Gone.sfc")
+        touch(os.path.join(self.settings, "settings.json"), json.dumps({"roots": [self.h.roms, self.sd]}))
+        touch(os.path.join(self.settings, "art.json"), json.dumps(
+            {zelda: {"portrait": "sgdb:1"}, gone: {"portrait": "sgdb:3"}, "app:12": {"hero": "sgdb:2"}}))
+        touch(os.path.join(self.settings, "drivers.json"), json.dumps({zelda: "mesa-26.3"}))
+        lib = library.Library(DEFAULTS, self.settings, self.h.home, os.path.join(self.h.root, "runtime"),
+                              logging.getLogger())
+        lib.esde.bundled = lambda: ARM_FILES
+        lib.watch_mounts()
+        self.assertEqual(self.library_file(self.sd)["games"],
+                         {"snes/Zelda.sfc": {"art": {"portrait": "sgdb:1"}, "driver": "mesa-26.3"}})
+        # A game that is not on the card waits in the plugin's files.
+        self.assertEqual(lib.picks.art, {gone: {"portrait": "sgdb:3"}, "app:12": {"hero": "sgdb:2"}})
+        self.assertEqual(lib.picks.drivers, {})
+        self.assertEqual(lib.choice(zelda, "portrait"), "sgdb:1")
+
+    def test_a_library_mounted_elsewhere_keeps_its_tiles_and_picks(self):
+        applied = {"name": "", "exe": "", "start_dir": "", "launch_options": ""}
+        self.lib.combine_libraries(self.h.roms, [self.sd, self.games])
+        self.lib.record(os.path.join(self.sd, "snes/Zelda.sfc"), 1, "snes", applied)
+        self.lib.choose(os.path.join(self.sd, "snes/Zelda.sfc"), "portrait", "sgdb:1")
+        self.lib.watch_mounts()
+        self.mount("SN128")
+        got = self.lib.mounts_changed()
+        zelda = os.path.join(self.sd, "snes/Zelda.sfc")
+        self.assertEqual(got["moved"], [{"where": "SN128/Emulation/roms", "drive": {"kind": "sd", "name": "MicroSD Card"}}])
+        self.assertEqual(self.lib.roots(), [self.h.roms, self.sd, self.games])
+        self.assertEqual(os.readlink(self.h.rom("snes")), os.path.join(self.sd, "snes"))
+        self.assertEqual(self.lib.tiles[zelda]["appid"], 1)
+        self.assertEqual(self.lib.choice(zelda, "portrait"), "sgdb:1")
+        self.assertEqual([g["path"] for g in self.lib.games("snes")],
+                         [os.path.join(self.sd, "snes", f) for f in ("Super Metroid.sfc", "Zelda.sfc")])
+        self.assertIsNone(self.lib.mounts_changed())
+
+    def test_a_tile_follows_its_game_moved_to_another_library(self):
+        applied = {"name": "", "exe": "", "start_dir": "", "launch_options": ""}
+        self.lib.combine_libraries(self.h.roms, [self.sd])
+        moved, kept = self.h.rom("psp/LittleBigPlanet (Europe) (PSP) (PSN).iso"), os.path.join(self.sd, "gba/Metroid Fusion.gba")
+        self.lib.record(moved, 1, "psp", applied)
+        self.lib.record(kept, 2, "gba", applied)
+        self.lib.choose(moved, "portrait", "sgdb:1")
+        # David moves the PSP game from the internal storage to the card, then pulls the card out.
+        os.remove(moved)
+        os.remove(os.path.join(self.sd, "psp/LittleBigPlanet (Europe) (PSP) (PSN).iso"))
+        touch(os.path.join(self.sd, "psp/LittleBigPlanet (Europe) (PSP) (PSN).iso"), "x" * 10)
+        self.lib.sync_plan()
+        card = os.path.join(self.sd, "psp/LittleBigPlanet (Europe) (PSP) (PSN).iso")
+        self.assertEqual(self.lib.tiles[card]["appid"], 1)
+        self.assertEqual(self.lib.choice(card, "portrait"), "sgdb:1")
+        self.assertEqual(self.library_file(self.sd)["games"], {"psp/LittleBigPlanet (Europe) (PSP) (PSN).iso": {"art": {"portrait": "sgdb:1"}}})
+        # A game without a tile takes its picks along too.
+        self.lib.picks.keep(self.h.rom("psp/Patapon.iso"), {"art": {"hero": "sgdb:2"}, "driver": None})
+        self.lib.sync_plan()
+        self.assertEqual(self.lib.choice(os.path.join(self.sd, "psp/Patapon.iso"), "hero"), "sgdb:2")
+        self.assertEqual(self.lib.picks.art, {})
+        # A tile on a card that is out keeps its path, even with a copy of its game elsewhere.
+        touch(self.h.rom("gba/Metroid Fusion.gba"), "x" * 80)
+        os.rename(self.card, self.card + ".out")
+        self.lib.sync_plan()
+        self.assertIn(kept, self.lib.tiles)
+
+    def test_a_card_with_another_library_is_reported(self):
+        self.lib.use_library(self.h.roms)
+        self.lib.watch_mounts()
+        self.mount("SN128")
+        got = self.lib.mounts_changed()
+        self.assertEqual(got, {"moved": [], "found": [
+            {"where": "SN128/Emulation/roms", "drive": {"kind": "sd", "name": "MicroSD Card"}, "games": 5}]})
 
     def test_without_roots_cards_are_still_read(self):
         self.assertEqual(self.lib.esde.rom_dirs(), [self.h.roms + "/", self.sd + "/"])

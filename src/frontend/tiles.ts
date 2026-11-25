@@ -142,6 +142,13 @@ export interface Library {
   systems: { id: string; name: string; games: number }[];
 }
 
+// What the backend sends when a drive brings or takes a library: the chosen libraries it found at a
+// new place, and the libraries the user has not chosen on the drives just mounted.
+export interface LibrariesChange {
+  moved: Pick<Library, "where" | "drive">[];
+  found: Pick<Library, "where" | "drive" | "games">[];
+}
+
 // Where a new library would go: its drive, the drive's free bytes, and the systems it gets a folder
 // for.
 export interface NewLibrary {

@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+import select
 
 import decky
 
@@ -17,6 +18,13 @@ refreshing = None
 # The plugin's folder under its first name. Decky names a plugin's settings, data and log folders
 # after its own folder.
 OLD_FOLDER = "rom-tiles"
+# The kernel's mount table. poll() on it returns when a drive is mounted or unmounted.
+MOUNT_TABLE = "/proc/self/mountinfo"
+# udisks mounts a drive's partitions one after the other: the check waits for the table to settle.
+SETTLE_S = 2
+# A wait on the mount table ends after this time, so that the thread ends after the plugin.
+WAIT_MS = 30000
+watcher = None
 
 
 # Moves what the plugin kept under its first name into the folder Decky gives it now.
@@ -47,9 +55,43 @@ async def refresh_info():
     return await asyncio.shield(refreshing)
 
 
+def table_changed(table, timeout_ms):
+    poll = select.poll()
+    poll.register(table, select.POLLPRI | select.POLLERR)
+    return bool(poll.poll(timeout_ms))
+
+
+# Follows the libraries at start, then tells the frontend when a drive brings or takes a library. The
+# kernel ends the wait: no folder is read until a drive comes or goes.
+async def watch_mounts():
+    try:
+        await asyncio.to_thread(library.watch_mounts)
+    except Exception as e:  # noqa: BLE001
+        decky.logger.exception(f"libraries: {e}")
+    try:
+        table = open(MOUNT_TABLE)
+    except OSError as e:
+        decky.logger.warning(f"{MOUNT_TABLE}: {e}")
+        return
+    with table:
+        while True:
+            if not await asyncio.to_thread(table_changed, table, WAIT_MS):
+                continue
+            await asyncio.sleep(SETTLE_S)
+            await asyncio.to_thread(table_changed, table, 0)
+            try:
+                got = await asyncio.to_thread(library.mounts_changed)
+            except Exception as e:  # noqa: BLE001
+                decky.logger.exception(f"mount change: {e}")
+                continue
+            if got:
+                decky.logger.info(f"libraries changed: {got}")
+                await decky.emit("libraries_changed", got)
+
+
 class Plugin:
     async def _main(self):
-        global library, artwork, icons
+        global library, artwork, icons, watcher
         for folder in (decky.DECKY_PLUGIN_SETTINGS_DIR, decky.DECKY_PLUGIN_RUNTIME_DIR):
             try:
                 adopt_old_folder(folder)
@@ -60,10 +102,12 @@ class Plugin:
         artwork = Artwork(os.path.join(decky.DECKY_PLUGIN_RUNTIME_DIR, "cache"), decky.logger)
         icons = os.path.join(decky.DECKY_PLUGIN_RUNTIME_DIR, "icons")
         await asyncio.to_thread(library.setup)
+        watcher = asyncio.get_running_loop().create_task(watch_mounts())
         asyncio.get_running_loop().create_task(refresh_info())
 
     async def _unload(self):
-        pass
+        if watcher:
+            watcher.cancel()
 
     # Blocking work runs in a thread so a slow download cannot stall Decky's event loop.
     async def list_systems(self):

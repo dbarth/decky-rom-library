@@ -189,10 +189,20 @@ class Libraries:
         """Return ES-DE's folder of a system in a ROM directory."""
         return self.esde.system_folders(system, root)[0]
 
-    def find(self):
-        """Return the folders that hold games, as Library in tiles.ts. A system's folder counts when it
-        holds a file with the system's extensions, under ES-DE's name or Batocera's and ROCKNIX's. A
-        system's folder that links into another place counts in that place alone."""
+    def media_points(self):
+        """Return the mount points of the cards and drives."""
+        return {point for point, _, _ in mounts() if point.startswith(MEDIA + "/")}
+
+    def describe(self, path):
+        """Return a folder's place for the library page: {where, drive}."""
+        point, device, _ = mount_of(path, mounts())
+        return {"where": self.where(path, point), "drive": drive(point, device)}
+
+    def find(self, within=None):
+        """Return the folders that hold games, as Library in tiles.ts, on the drives mounted at the
+        points within, else on every drive. A system's folder counts when it holds a file with the
+        system's extensions, under ES-DE's name or Batocera's and ROCKNIX's. A system's folder that
+        links into another place counts in that place alone."""
         systems = self.esde.systems()
         places = self.places()
         reals = [os.path.realpath(p) for p in places]
@@ -200,6 +210,8 @@ class Libraries:
         table = mounts()
         out = []
         for i, root in enumerate(places):
+            if within is not None and not any((reals[i] + "/").startswith(p.rstrip("/") + "/") for p in within):
+                continue
             counted = []
             for sid, s in systems.items():
                 folders = [f for f in self.esde.system_folders(s, root) if os.path.isdir(f) and not (

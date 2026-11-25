@@ -15,6 +15,7 @@ from .eden import Eden
 from .esde import EsDe, Unresolved, unquote, words
 from .jsonfile import read_json, write_json
 from .libraries import Libraries
+from .picks import Picks
 from .rdb import Facts
 from .retroarch import RetroArch
 
@@ -82,10 +83,8 @@ class Library:
         self.log = log
         self.user_file = os.path.join(settings_dir, "systems.json")
         self.tiles_file = os.path.join(settings_dir, "tiles.json")
-        self.choices_file = os.path.join(settings_dir, "art.json")
         self.settings_file = os.path.join(settings_dir, "settings.json")
         self.drivers_dir = os.path.join(home, ".local", "share", "vulkan-drivers")
-        self.drivers_file = os.path.join(settings_dir, "drivers.json")
         # Each app shortcut by app id: its name, its kind, whether it got artwork once and its id in the hub.
         self.apps_file = os.path.join(settings_dir, "apps.json")
         self.hub = HUB
@@ -110,10 +109,11 @@ class Library:
         # An older tiles.json holds app ids alone.
         self.tiles = {path: rec if isinstance(rec, dict) else {"appid": rec}
                       for path, rec in read_json(self.tiles_file, {}).items()}
-        # The image the user picked for each kind of a game's art, by ROM path.
-        self.choices = read_json(self.choices_file, {})
-        # The Vulkan driver the user picked for a game, by ROM path.
-        self.drivers = read_json(self.drivers_file, {})
+        # The images and the Vulkan driver the user picked for each game.
+        self.picks = Picks(settings_dir, self.esde.rom_dirs, log)
+        # The drives mounted and the ROM folders found at the last mount change.
+        self.media_points = set()
+        self.present = []
 
     def expand(self, path):
         return self.home + path[1:] if path.startswith("~") else path
@@ -486,10 +486,7 @@ class Library:
                 shutil.rmtree(p)
             elif os.path.lexists(p):
                 os.remove(p)
-        if self.choices.pop(path, None) is not None:
-            write_json(self.choices_file, self.choices)
-        if self.drivers.pop(path, None) is not None:
-            write_json(self.drivers_file, self.drivers)
+        self.picks.forget(path)
 
     def copies(self):
         """Return the game files whose name and size match a file in an earlier ROM folder. The main
@@ -544,6 +541,103 @@ class Library:
         settings = self.settings()
         settings["roots"] = list(dict.fromkeys(roots))
         write_json(self.settings_file, settings)
+        self.library_ids()
+
+    def library_ids(self):
+        """Give each chosen ROM folder that is mounted an id in its library file, and keep the ids in
+        settings.json: a library found elsewhere is the same by its id. Return {folder: id}."""
+        settings = self.settings()
+        roots = settings.get("roots") or []
+        ids = {r: i for r, i in (settings.get("ids") or {}).items() if r in roots}
+        for root in roots:
+            if os.path.isdir(root):
+                found = self.picks.library_id(root)
+                if found:
+                    ids[root] = found
+        if ids != settings.get("ids"):
+            settings["ids"] = ids
+            write_json(self.settings_file, settings)
+        return ids
+
+    def follow_libraries(self):
+        """Move each chosen ROM folder that is gone to the folder where a drive now mounts its library,
+        found by its id. Return [(old folder, new folder)]."""
+        ids = self.library_ids()
+        roots = self.roots() or []
+        gone = {ids[r]: r for r in roots if r in ids and not os.path.isdir(r)}
+        moved = []
+        for place in self.libraries.places() if gone else []:
+            found = self.picks.library_id(place, create=False)
+            if found in gone and place not in roots:
+                moved.append((gone.pop(found), place))
+        for old, new in moved:
+            self.move_library(old, new)
+        return moved
+
+    def move_library(self, old, new):
+        """Put a library's new folder in place of its old one: in the chosen ROM folders, in ES-DE's
+        ROM directory, in the links of the other libraries to its systems, and in the paths of the
+        tiles and of the picks the plugin's files hold."""
+        settings = self.settings()
+        settings["roots"] = [new if r == old else r for r in settings.get("roots") or []]
+        ids = settings.get("ids") or {}
+        if old in ids:
+            ids[new] = ids.pop(old)
+        settings["ids"] = ids
+        write_json(self.settings_file, settings)
+        if os.path.normpath(self.expand(self.esde.setting("ROMDirectory") or "/")) == old:
+            self.esde.set_setting("ROMDirectory", new)
+        for root in settings["roots"]:
+            try:
+                links = [e.path for e in os.scandir(root) if e.is_symlink()]
+            except OSError:
+                continue
+            for link in links:
+                target = os.readlink(link)
+                if target.startswith(old + "/"):
+                    os.remove(link)
+                    os.symlink(new + target[len(old):], link)
+                    self.log.info(f"linked {link} to {new + target[len(old):]}")
+        tiles = {p: new + p[len(old):] for p in self.tiles if p.startswith(old + "/")}
+        for p, q in tiles.items():
+            self.tiles[q] = self.tiles.pop(p)
+        if tiles:
+            self.save_tiles()
+        self.picks.rebase(old, new)
+        self.log.info(f"library {old} is now {new}: {len(tiles)} tiles moved")
+
+    def watch_mounts(self):
+        """Note the drives mounted, then follow the libraries and move the picks as mounts_changed()
+        does. Runs at the plugin's start."""
+        self.media_points = self.libraries.media_points()
+        self.present = []
+        self.mounts_changed()
+
+    def mounts_changed(self):
+        """Follow the chosen libraries to their new mount points and move the picks the plugin's files
+        hold into the libraries now mounted. List the libraries the user has not chosen on the drives
+        just mounted. Return what the library page shows, else None when no library came or went."""
+        moved = self.follow_libraries()
+        adopted = self.picks.adopt()
+        before, points = self.media_points, self.libraries.media_points()
+        roots = self.roots()
+        found = []
+        if roots and points - before:
+            chosen = {os.path.realpath(r) for r in roots}
+            try:
+                found = [{k: lib[k] for k in ("where", "drive", "games")}
+                         for lib in self.libraries.find(within=points - before)
+                         if os.path.realpath(lib["path"]) not in chosen]
+            except (OSError, Unresolved) as e:
+                self.log.warning(f"libraries on {sorted(points - before)}: {e}")
+        present = [r for r in self.esde.rom_dirs() if os.path.isdir(r)]
+        changed = present != self.present
+        self.media_points, self.present = points, present
+        if adopted:
+            self.log.info(f"picks of {adopted} games moved into their libraries")
+        if not (moved or changed or found):
+            return None
+        return {"moved": [self.libraries.describe(new) for _, new in moved], "found": found}
 
     def find_libraries(self):
         return self.libraries.find()
@@ -575,21 +669,33 @@ class Library:
         self.esde.set_setting("ROMDirectory", path)
         self.relocate()
 
-    def relocate(self):
-        """Move each tile whose game left the ROM folders to the same game in them: the same file name,
-        and the same size while the old file is there. The tile's own system comes first. A tile with no
-        such game, or with two, keeps its path. The next sync gives the Steam shortcut the new path."""
+    def relocate(self, keep_absent=False):
+        """Move each tile whose game left the ROM folders, or is gone, to the same game in them: the same
+        file name, and the same size while the old file is there. The tile's own system comes first. A
+        tile with no such game, or with two, keeps its path. The next sync gives the Steam shortcut the
+        new path. The picks of a game that is gone and has no tile move the same way. With keep_absent,
+        a game in a library that is not mounted keeps its path: its card may return."""
         systems = self.systems()
+        absent = [r.rstrip("/") for r in self.esde.rom_dirs() if keep_absent and not os.path.isdir(r)]
         found = None
-        moved = 0
-        for path, tile in list(self.tiles.items()):
-            if self.system_of(path, systems):
-                continue
+
+        def games():
+            nonlocal found
             if found is None:
                 found = collections.defaultdict(list)
                 for sid, system in systems.items():
                     for game in self.scan(system):
                         found[os.path.basename(game)].append((sid, game))
+            return found
+
+        def stays(path):
+            return (self.system_of(path, systems) and os.path.lexists(path)) or any(path.startswith(r + "/") for r in absent)
+
+        moved = 0
+        for path, tile in list(self.tiles.items()):
+            if stays(path):
+                continue
+            found = games()
             try:
                 size = os.stat(path).st_size
             except OSError:
@@ -602,16 +708,18 @@ class Library:
                 continue
             sid, new = match[0]
             self.tiles[new] = {**self.tiles.pop(path), "system": sid}
-            if path in self.choices:
-                self.choices[new] = self.choices.pop(path)
-            if path in self.drivers:
-                self.drivers[new] = self.drivers.pop(path)
+            self.picks.move(path, new)
             self.log.info(f"tile {tile['appid']}: {path} -> {new}")
             moved += 1
+        for path in self.picks.paths():
+            if path in self.tiles or os.path.lexists(path) or stays(path):
+                continue
+            same = [p for _, p in games().get(os.path.basename(path), []) if p not in self.tiles]
+            if len(same) == 1:
+                self.picks.move(path, same[0])
+                self.log.info(f"picks: {path} -> {same[0]}")
         if moved:
             self.save_tiles()
-            write_json(self.choices_file, self.choices)
-            write_json(self.drivers_file, self.drivers)
         return moved
 
     # Steam shortcuts
@@ -657,18 +765,14 @@ class Library:
         return sorted(n for n in entries if os.path.isfile(os.path.join(self.drivers_dir, n, "icd.json")))
 
     def vulkan_driver(self, path):
-        return {"drivers": self.installed_drivers(), "driver": self.drivers.get(path)}
+        return {"drivers": self.installed_drivers(), "driver": self.picks.get(path)["driver"]}
 
     def set_vulkan_driver(self, path, name):
-        if name is None:
-            self.drivers.pop(path, None)
-        else:
-            self.drivers[path] = name
-        write_json(self.drivers_file, self.drivers)
+        self.picks.change(path, driver=name)
 
     def driver_env(self, path):
         """Return the assignments that start a game on its driver. A removed driver leaves the system's."""
-        name = self.drivers.get(path)
+        name = self.picks.get(path)["driver"]
         if name not in self.installed_drivers():
             return []
         folder = os.path.join(self.drivers_dir, name)
@@ -696,7 +800,9 @@ class Library:
         return sorted(name for name, paths in self.esde.collections().items() if path in paths)
 
     def sync_plan(self):
-        """Compare each tile with its game and return what to change in Steam."""
+        """Move the tiles whose game moved to another library, then compare each tile with its game and
+        return what to change in Steam."""
+        self.relocate(keep_absent=True)
         systems = self.systems()
         plan = []
         dirty = False
@@ -964,8 +1070,7 @@ class Library:
                 "files_s": round(files_s, 2), "history_s": round(time.monotonic() - start - files_s, 2)}
 
     def choice(self, path, kind):
-        return self.choices.get(path, {}).get(kind)
+        return self.picks.get(path)["art"].get(kind)
 
     def choose(self, path, kind, image_id):
-        self.choices.setdefault(path, {})[kind] = image_id
-        write_json(self.choices_file, self.choices)
+        self.picks.change(path, {kind: image_id})
