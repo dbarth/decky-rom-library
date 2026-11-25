@@ -9,8 +9,8 @@ import {
   uninstallEmulator, update, useFolderWatch, useStore,
 } from "./store";
 import {
-  APPS, AppKind, Candidate, Game, Kind, RomFiles, System, capsulesOf, getCandidates, getImage, isHidden, mainHistory,
-  refreshInfo,
+  APPS, AppKind, Candidate, Game, Kind, PC_GAMES, RomFiles, System, capsulesOf, getCandidates, getImage, isHidden,
+  mainHistory, refreshInfo,
 } from "./tiles";
 import { GameInfo, MONTHS, factsOf, hasFacts } from "./gameinfo";
 import {
@@ -23,7 +23,7 @@ export const GAMES_ROUTE = "/rom-library";
 export const GAME_ROUTE = "/rom-library/game";
 export const PROPERTIES_ROUTE = "/rom-library/properties";
 
-const APP_KIND: Record<AppKind, string> = { emulator: "Emulator", frontend: "Front-end", other: "App" };
+const APP_KIND: Record<AppKind, string> = { emulator: "Emulator", frontend: "Front-end", game: "PC game", other: "App" };
 const RATIO: Record<Kind, number> = { portrait: 600 / 900, landscape: 920 / 430, hero: 1920 / 620, logo: 2, icon: 1 };
 
 // Rounds a size to KB, MB or GB, in steps of 1024 as du -h counts.
@@ -242,7 +242,7 @@ function Results() {
   );
 }
 
-// An emulator or a front-end, marked like a tile while Steam's library shows it.
+// An emulator, a front-end or a PC game, marked like a tile while Steam's library shows it.
 function AppCard({ app, wave }: { app: Game; wave?: number }) {
   const busy = useStore().busy[app.path];
   const [tried, setTried] = useState(0);
@@ -265,8 +265,9 @@ function AppCard({ app, wave }: { app: Game; wave?: number }) {
   );
 }
 
-function AppGrid() {
-  const apps = useStore().games[APPS];
+// The PC games, or the other apps: emulators and front-ends.
+function AppGrid({ games = false }: { games?: boolean }) {
+  const apps = useStore().games[APPS]?.filter((a) => (a.kind === "game") === games);
   if (!apps) return <WaitGrid count={6} />;
   if (apps.length === 0) return <div className="rt-empty">No app besides the tiles.</div>;
   return (
@@ -291,14 +292,17 @@ export function GamesPage() {
   else if (available.length === 0) body = <Scroll><div className="rt-empty">No ROMs found for the installed emulators.</div></Scroll>;
   else body = (
     <Tabs
-      activeTab={s.appsTab ? APPS : s.systemId ?? available[0].id}
+      activeTab={s.appsTab ?? s.systemId ?? available[0].id}
       onShowTab={(id: string) => {
-        update({ appsTab: id === APPS });
-        if (id !== APPS) selectSystem(id);
+        const apps = id === APPS || id === PC_GAMES;
+        update({ appsTab: apps ? id : null });
+        if (!apps) selectSystem(id);
       }}
       autoFocusContents
       tabs={[
         ...available.map((sys) => ({ id: sys.id, title: sys.name, content: <Tab><GameGrid system={sys} /></Tab> })),
+        ...s.games[APPS]?.some((a) => a.kind === "game")
+          ? [{ id: PC_GAMES, title: "PC Games", content: <Tab><AppGrid games /></Tab> }] : [],
         { id: APPS, title: "Emulators", content: <Tab><AppGrid /></Tab> },
       ]}
     />
@@ -560,11 +564,13 @@ function confirmAppUninstall(app: Game) {
 }
 
 // The menu of an emulator or a front-end: start it alone, to change its settings. The hub's apps
-// can be uninstalled.
-function appMenu(at: EventTarget | null, app: Game) {
+// can be uninstalled. A PC game starts from Play: its menu shows or hides it in Steam's library.
+function appMenu(at: EventTarget | null, app: Game, shown: boolean) {
   showContextMenu(
-    <Menu label="Emulator">
-      <MenuItem onSelected={() => play(APPS, app)}>Launch {app.name}</MenuItem>
+    <Menu label={APP_KIND[app.kind ?? "other"]}>
+      {app.kind === "game"
+        ? <MenuItem onSelected={() => showApp(app, !shown)}>{shown ? "Hide from Steam" : "Show in Steam"}</MenuItem>
+        : <MenuItem onSelected={() => play(APPS, app)}>Launch {app.name}</MenuItem>}
       {app.hub && <MenuSeparator />}
       {app.hub && <MenuItem tone="destructive" onSelected={() => confirmAppUninstall(app)}>Uninstall…</MenuItem>}
     </Menu>,
@@ -586,7 +592,8 @@ const BUMPERS: Record<number, number> = { [GamepadButton.BUMPER_LEFT]: -1, [Game
 export function GameView({ system, game }: { system: string; game: Game }) {
   const s = useStore();
   const isApp = system === APPS;
-  // An app's button shows it in Steam's library or hides it there.
+  // An app's button shows it in Steam's library or hides it there. A PC game's button plays it.
+  const pcGame = isApp && game.kind === "game";
   const shown = isApp && game.appid != null && !isHidden(game.appid);
   const inSteam = isApp ? shown : game.appid != null;
   const hero = usePicture(system, game.path, "hero");
@@ -597,7 +604,7 @@ export function GameView({ system, game }: { system: string; game: Game }) {
   const busy = s.busy[game.path];
   // The main button spins for its own action: Play while the game starts, an app's button while
   // it shows or hides the app. The gear spins for the others.
-  const mainBusy = !!busy && (isApp ? !busy.startsWith("Uninstalling") : busy.startsWith("Starting"));
+  const mainBusy = !!busy && (isApp && !pcGame ? !busy.startsWith("Uninstalling") : busy.startsWith("Starting"));
   const sys = s.systems?.find((x) => x.id === system);
   // An arcade game's page shows two lines of its history. Game Info slides the rest up as a second
   // screen, which stays mounted until it has slid back down.
@@ -619,12 +626,13 @@ export function GameView({ system, game }: { system: string; game: Game }) {
     el?.addEventListener("focusin", close);
     return () => el?.removeEventListener("focusin", close);
   }, []);
-  // Play takes Steam's focus when the page opens, and no other button claims it. On an app's page the
-  // gear does: it leads to the launcher, and showing the app in Steam's library stays a choice.
+  // Play takes Steam's focus when the page opens, and no other button claims it. On the page of an
+  // app other than a PC game the gear does: it leads to the launcher, and showing the app in Steam's
+  // library stays a choice.
   const main = useRef<HTMLDivElement>(null);
   const gear = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    takeFocus((isApp ? gear : main).current);
+    takeFocus((isApp && !pcGame ? gear : main).current);
   }, [game.path]);
   // The teaser takes the strip's middle column, the stats' box. It stays out of the buttons' row so
   // that down from Play reaches Game Info: its place is measured.
@@ -645,7 +653,7 @@ export function GameView({ system, game }: { system: string; game: Game }) {
   }, [arcade]);
   // The page shows the previous or next game in the grid's order. B goes back to the grid.
   const step = (e: GamepadEvent) => {
-    const games = s.games[system] ?? [];
+    const games = (s.games[system] ?? []).filter((g) => !isApp || (g.kind === "game") === pcGame);
     const next = BUMPERS[e.detail.button] && games[games.findIndex((g) => g.path === game.path) + BUMPERS[e.detail.button]];
     if (next) update({ selected: { system, path: next.path } });
   };
@@ -673,7 +681,7 @@ export function GameView({ system, game }: { system: string; game: Game }) {
           </div>
           <div ref={strip} className="rt-strip">
             <Focusable className="rt-actions" flow-children="row">
-              {isApp ? (
+              {isApp && !pcGame ? (
                 <DialogButton ref={main} className={`rt-act rt-big${mainBusy ? " rt-pending" : ""}`}
                   onClick={() => showApp(game, !shown)}>
                   <span className="rt-text"><Logo />{shown ? "Hide from Steam" : "Show in Steam"}</span>
@@ -704,8 +712,8 @@ export function GameView({ system, game }: { system: string; game: Game }) {
                   {refreshing && <Spinner />}
                 </DialogButton>
                 <DialogButton ref={gear} className={`rt-act rt-icon rt-gear${busy && !mainBusy ? " rt-pending" : ""}`}
-                  preferredFocus={isApp} disabled={!!busy} onClick={(e) => (isApp ? appMenu(e.currentTarget, game)
-                    : openProperties(main.current))}>
+                  preferredFocus={isApp && !pcGame} disabled={!!busy}
+                  onClick={(e) => (isApp ? appMenu(e.currentTarget, game, shown) : openProperties(main.current))}>
                   <span className="rt-text"><GearIcon /></span>
                   {busy && !mainBusy && <Spinner />}
                 </DialogButton>

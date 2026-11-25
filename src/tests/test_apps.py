@@ -63,7 +63,10 @@ class ClassifyTest(unittest.TestCase):
     def test_stores_and_others(self):
         self.assertEqual(self.kind("/usr/bin/konkr-apk", '"run" "com.android.vending"'), apps.OTHER)
         self.assertEqual(self.kind("/usr/bin/flatpak", "run com.heroicgameslauncher.hgl"), apps.OTHER)
-        self.assertEqual(self.kind("/home/u/Games/game.exe"), apps.OTHER)
+
+    def test_windows_programs_are_pc_games(self):
+        self.assertEqual(self.kind("/run/media/steamos/GAMES/Grand Theft Auto V/GTAVLauncher.exe"), apps.GAME)
+        self.assertEqual(self.kind("/home/u/Games/GAME.EXE", "-windowed -path=C:/saves"), apps.GAME)
 
 
 class PlanTest(unittest.TestCase):
@@ -108,6 +111,16 @@ class PlanTest(unittest.TestCase):
         self.assertEqual([a["name"] for a in self.lib.app_list()], ["RetroArch"])
         with open(os.path.join(self.settings, "apps.json")) as f:
             self.assertEqual(json.load(f)["2"]["kind"], "other")
+
+    def test_pc_games_are_listed_after_the_emulators_with_steam_art_first(self):
+        self.lib.apps_plan(self.shortcuts + [
+            {"appid": 5, "name": "Grand Theft Auto V", "exe": '"/run/media/steamos/GAMES/GTAV/GTAVLauncher.exe"',
+             "launch_options": "", "art": False}])
+        self.assertEqual([(a["name"], a["kind"]) for a in self.lib.app_list()],
+                         [("RetroArch", "emulator"), ("Grand Theft Auto V", "game")])
+        media = self.lib.media(library.APPS, "app:5")
+        self.assertEqual(media["art"], ["steam", "sgdb", "icon"])
+        self.assertNotIn("sgdb_names", media)
 
     def test_android_app_falls_back_on_its_icon(self):
         icon = os.path.join(self.h.home, "Android", ".android", "icons", "com.example.game.png")

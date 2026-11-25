@@ -1,10 +1,10 @@
-"""Non-Steam shortcuts that are not ROM tiles: emulators, front-ends and other apps."""
+"""Non-Steam shortcuts that are not ROM tiles: emulators, front-ends, PC games and other apps."""
 import os
 import re
 
 from .esde import FLATPAK_ID, ENV_ASSIGNMENT, unquote, words
 
-EMULATOR, FRONTEND, OTHER = "emulator", "frontend", "other"
+EMULATOR, FRONTEND, GAME, OTHER = "emulator", "frontend", "game", "other"
 FRONTEND_BINARY = re.compile(r"(?i)(es-de|esde|emulationstation|pegasus-fe|pegasus|retrodeck)([-_. ].*)?(\.appimage)?")
 FRONTEND_FLATPAKS = {"org.es_de.frontend", "org.pegasus_frontend.Pegasus", "net.retrodeck.retrodeck"}
 
@@ -46,9 +46,10 @@ def opens_a_file(args):
 
 
 def classify(shortcut, binaries, flatpaks, frontend_binary=None):
-    """Return EMULATOR, FRONTEND or OTHER for one shortcut: {exe, launch_options}.
+    """Return EMULATOR, FRONTEND, GAME or OTHER for one shortcut: {exe, launch_options}.
 
-    An emulator shortcut starts the emulator alone: one that opens a game stays OTHER."""
+    An emulator shortcut starts the emulator alone: one that opens a game stays OTHER. A Windows
+    program, which Steam runs through Proton, is a PC GAME."""
     exe = unquote(shortcut.get("exe") or "")
     options = shortcut.get("launch_options") or ""
     app, after = flatpak_app(exe, options)
@@ -57,6 +58,8 @@ def classify(shortcut, binaries, flatpaks, frontend_binary=None):
     if (app in FRONTEND_FLATPAKS or (frontend_binary and exe in (frontend_binary, os.path.realpath(frontend_binary)))
             or FRONTEND_BINARY.fullmatch(base)):
         return FRONTEND
+    if exe.lower().endswith(".exe"):
+        return GAME
     if opens_a_file(args):
         return OTHER
     if app in flatpaks or exe in binaries or os.path.realpath(exe) in binaries:

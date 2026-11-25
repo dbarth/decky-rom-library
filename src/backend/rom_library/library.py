@@ -8,7 +8,7 @@ import subprocess
 import time
 
 from . import arcade, info, names, wii
-from .apps import EMULATOR, FRONTEND, android_package, classify
+from .apps import EMULATOR, FRONTEND, GAME, android_package, classify
 from . import dsu
 from .dolphin import Dolphin
 from .eden import Eden
@@ -811,9 +811,10 @@ class Library:
             write_json(self.apps_file, apps)
 
     def app_list(self):
-        """Return the emulators and the front-ends, which know how to show in Steam: other apps stay out."""
+        """Return the emulators, the front-ends and the PC games, which know how to show in Steam: other
+        apps stay out."""
         apps = read_json(self.apps_file, {})
-        order = {EMULATOR: 0, FRONTEND: 1}
+        order = {EMULATOR: 0, FRONTEND: 1, GAME: 2}
         out = [{"path": f"app:{appid}", "file": a["kind"], "name": a["name"], "appid": int(appid),
                 "kind": a["kind"], "hub": a.get("hub"), "thumb": None, "favorite": False, "missing": False}
                for appid, a in apps.items() if a["kind"] in order]
@@ -878,6 +879,10 @@ class Library:
         if not app:
             raise KeyError(path)
         name = app["name"]
+        if app["kind"] == GAME:
+            # A PC game takes the images of its page on Steam's store first.
+            return {"stem": "", "title": name, "name": name, "art": ["steam", "sgdb", "icon"], "libretro": None,
+                    "esde_media": None, "icon": app.get("icon")}
         # SteamGridDB names emulators, programs and websites with a suffix.
         names = [f"{name} (Emulator)"] if app["kind"] == EMULATOR else []
         names += [f"{name} (Program)", f"{name} (Website)", name]

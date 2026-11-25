@@ -1,4 +1,5 @@
-"""Tile artwork from ES-DE's scraped media, the libretro thumbnails, SteamGridDB or an app's icon."""
+"""Tile artwork from ES-DE's scraped media, the libretro thumbnails, Steam's store, SteamGridDB or an
+app's icon."""
 import base64
 import hashlib
 import itertools
@@ -16,6 +17,17 @@ from .library import read_json, write_json
 LIBRETRO = "https://thumbnails.libretro.com"
 # SteamGridDB's website API, which needs no key.
 SGDB = "https://www.steamgriddb.com/api/public"
+# Steam's store search, which needs no key, and the images of its apps.
+STEAM_SEARCH = "https://store.steampowered.com/api/storesearch/?l=english&cc=US&term="
+STEAM_ASSETS = "https://shared.steamstatic.com/store_item_assets/steam/apps"
+# The library images of a Steam app for each kind, largest first. Some apps have only the smaller.
+STEAM_FILES = {
+    "portrait": ("library_600x900_2x.jpg", "library_600x900.jpg"),
+    "landscape": ("library_header_2x.jpg", "header.jpg"),
+    "hero": ("library_hero.jpg",),
+    "logo": ("logo_2x.png", "logo.png"),
+    "icon": (),
+}
 
 # Folders by preference for each kind. Screenshots come before box art.
 ESDE_FOLDERS = {
@@ -39,6 +51,8 @@ LABELS = {
     "Named_Titles": "Title screen", "Named_Snaps": "Screenshot",
     "Named_Boxarts": "Box art", "Named_Logos": "Logo",
 }
+# The label of a Steam library image in the picker, after its source: "Steam official".
+STEAM_LABEL = "Official"
 # Asset type and the sizes a default may take, most wanted first.
 SGDB_ASSETS = {
     "portrait": ("grid", [(600, 900)]),
@@ -111,6 +125,9 @@ class Artwork:
                 return url
         return None
 
+    def default_steam(self, media, kind):
+        return self.steam_image(media, kind)
+
     def default_sgdb(self, media, kind):
         asset_type, sizes = SGDB_ASSETS[kind]
         assets = [a for a in self.sgdb_assets(media, asset_type, pages=3, sizes=sizes)
@@ -138,6 +155,14 @@ class Artwork:
             for folder in LIBRETRO_FOLDERS[kind] or LIBRETRO_FOLDERS["landscape"][:2]:
                 url = self.libretro_url(media, folder)
                 out.append({"id": url, "thumb": url, "label": LABELS[folder], "source": "libretro", "size": None})
+        if "steam" in media["art"]:
+            try:
+                url = self.steam_image(media, kind)
+            except (OSError, ValueError, KeyError) as e:
+                self.log.warning(f"steam candidates for {media['name']}: {e}")
+                url = None
+            if url:
+                out.append({"id": url, "thumb": url, "label": STEAM_LABEL, "source": "Steam", "size": None})
         asset_type, sizes = SGDB_ASSETS[kind]
         try:
             assets = self.sgdb_assets(media, asset_type, pages=1)
@@ -195,6 +220,31 @@ class Artwork:
         # libretro replaces these characters in its file names.
         name = re.sub(r'[&*/:`<>?\\|"]', "_", media["title"])
         return f"{LIBRETRO}/" + urllib.parse.quote(f"{media['libretro']}/{folder}/{name}.png")
+
+    def steam_image(self, media, kind):
+        """Return the URL of a game's Steam library image of one kind, else None."""
+        app_id = self.steam_id(media["name"]) if STEAM_FILES[kind] else None
+        for name in STEAM_FILES[kind] if app_id else ():
+            url = f"{STEAM_ASSETS}/{app_id}/{name}"
+            if self.get(url, missing_ok=True):
+                return url
+        return None
+
+    def steam_id(self, name):
+        """Return the id of the app Steam's store finds under a name: the same words, else words that
+        extend them, as Grand Theft Auto V Enhanced extends Grand Theft Auto V."""
+        key = "steam:" + simplify(name)
+        if key in self.ids:
+            return self.ids[key]
+        found = json.loads(self.open(STEAM_SEARCH + urllib.parse.quote(name))).get("items") or []
+        found = [i for i in found if i.get("type") == "app"]
+        want = words(name)
+        match = next((i for i in found if words(i["name"]) == want), None)
+        if match is None:
+            match = next((i for i in found if words(i["name"])[:len(want)] == want), None)
+        self.ids[key] = match["id"] if match else None
+        write_json(self.ids_file, self.ids)
+        return self.ids[key]
 
     def sgdb_assets(self, media, asset_type, pages, sizes=None):
         game_id = self.sgdb_app_id(media["sgdb_names"]) if media.get("sgdb_names") else self.sgdb_id(media["name"])

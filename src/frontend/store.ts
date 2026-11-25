@@ -27,8 +27,8 @@ interface State {
   selected: { system: string; path: string } | null;
   // The last game started. Without a tile, it runs as the hidden launcher.
   playing: { system: string; path: string } | null;
-  // The full-screen page shows the Apps tab when set.
-  appsTab: boolean;
+  // The tab of apps the full-screen page shows, APPS or PC_GAMES, else null for a system's tab.
+  appsTab: string | null;
   // Bumps when a tile's art changes, so images Steam serves under the same URL load again.
   artVersion: number;
   // The games whose tile art is being changed, by ROM path.
@@ -52,7 +52,7 @@ function stored(key: string): string | null {
 // state lives here and outlives the components.
 export const state: State = {
   systems: null, systemId: null, games: {}, busy: {}, query: "", selected: null, playing: null,
-  appsTab: false, artVersion: 0, artPending: {}, showStats: stored(STATS_KEY) === "1",
+  appsTab: null, artVersion: 0, artPending: {}, showStats: stored(STATS_KEY) === "1",
 };
 const listeners = new Set<() => void>();
 

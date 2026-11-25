@@ -9,7 +9,7 @@ import { LIBRARIES_ROUTE, openLibraries } from "./libraries";
 import { GAMES_ROUTE, GAME_ROUTE, PROPERTIES_ROUTE, Spinner, mainRoute, openGames } from "./page";
 import { addGame, findGame, loadGames, quit, refresh, state, update, useStore } from "./store";
 import { PANEL_CSS } from "./styles";
-import { APPS, AppInfo, Game, describeApp, getPlaces } from "./tiles";
+import { APPS, AppInfo, Game, PC_GAMES, describeApp, getPlaces } from "./tiles";
 
 // Loadout's page, when its plugin is installed.
 const LOADOUT_ROUTE = "/loadout";
@@ -53,16 +53,23 @@ function ScanLibraries() {
   );
 }
 
-// Shows the tab's rows: a system's games and Add a Game…, or the emulators and Add Emulators… when
-// Loadout is installed.
+// Shows the tab's rows: a system's games and Add a Game…, the PC games, or the emulators and Add
+// Emulators… when Loadout is installed.
 function TabRows() {
   const s = useStore();
   const [places, setPlaces] = useState<{ downloads: string; loadout: boolean } | null>(null);
   useEffect(() => {
     getPlaces().then(setPlaces, () => undefined);
   }, []);
+  if (s.appsTab === PC_GAMES) {
+    return (
+      <PanelSectionRow>
+        <Field label="PC Games">{s.games[APPS]?.filter((a) => a.kind === "game").length ?? "…"}</Field>
+      </PanelSectionRow>
+    );
+  }
   if (s.appsTab) {
-    const apps = s.games[APPS];
+    const apps = s.games[APPS]?.filter((a) => a.kind !== "game");
     return (
       <>
         <PanelSectionRow>

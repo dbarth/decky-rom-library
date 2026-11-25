@@ -77,7 +77,7 @@ export interface VulkanDriver {
   driver: string | null;
 }
 
-export type AppKind = "emulator" | "frontend" | "other";
+export type AppKind = "emulator" | "frontend" | "game" | "other";
 
 // What the plugin knows of a Steam app: its tile, or its kind of app.
 export type AppInfo = { tile: string; system: string } | { kind: AppKind | "launcher"; hub?: string | null };
@@ -98,6 +98,8 @@ export interface EmulatorSettings {
 
 // The pseudo system of the shortcuts that are not tiles. Their paths are "app:<appid>".
 export const APPS = "apps";
+// The tab of the PC games, which are apps of the APPS system.
+export const PC_GAMES = "pc-games";
 
 interface AppShortcut {
   appid: number;
